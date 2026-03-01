@@ -17,6 +17,7 @@ use std::thread;
 use std::time::Duration;
 
 use tauri::AppHandle;
+use tauri::Manager;
 use tauri::State;
 use tauri::WindowEvent;
 
@@ -324,6 +325,14 @@ fn handle_window_close_to_background(window: &tauri::Window, event: &WindowEvent
         api.prevent_close();
         if let Err(err) = window.hide() {
             log::warn!("隐藏窗口失败: {err}");
+        }
+        #[cfg(target_os = "macos")]
+        {
+            // 仅隐藏主窗口到后台时，同时隐藏 Dock 图标；
+            // 应用仍继续运行，可从状态栏再次打开。
+            if let Err(err) = window.app_handle().set_dock_visibility(false) {
+                log::warn!("隐藏 Dock 图标失败: {err}");
+            }
         }
     }
 }

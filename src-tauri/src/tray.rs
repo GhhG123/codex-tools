@@ -332,6 +332,9 @@ pub(crate) fn handle_status_bar_menu_event(app: &AppHandle, event: tauri::menu::
         }
 
         if id == TRAY_MENU_OPEN_ID {
+            if let Err(err) = app.set_dock_visibility(true) {
+                log::warn!("恢复 Dock 图标失败: {err}");
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
