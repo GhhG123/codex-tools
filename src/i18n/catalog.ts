@@ -147,6 +147,56 @@ export type MessageCatalog = {
     activeAccountEmptyDescription: string;
     lastErrorLabel: string;
     none: string;
+    remoteKicker: string;
+    remoteTitle: string;
+    remoteDescription: string;
+    remoteAddServer: string;
+    remoteEmptyTitle: string;
+    remoteEmptyDescription: string;
+    remoteNameLabel: string;
+    remoteHostLabel: string;
+    remoteSshPortLabel: string;
+    remoteUserLabel: string;
+    remoteAuthLabel: string;
+    remoteIdentityFileLabel: string;
+    remoteIdentityFilePlaceholder: string;
+    remotePickIdentityFile: string;
+    remoteDirLabel: string;
+    remoteListenPortLabel: string;
+    remoteAuthKeyContent: string;
+    remoteAuthKeyFile: string;
+    remoteAuthKeyPath: string;
+    remoteAuthPassword: string;
+    remotePrivateKeyLabel: string;
+    remotePrivateKeyPlaceholder: string;
+    remotePasswordLabel: string;
+    remotePasswordPlaceholder: string;
+    remoteSave: string;
+    remoteRemove: string;
+    remoteDeploy: string;
+    remoteDeploying: string;
+    remoteRefresh: string;
+    remoteRefreshing: string;
+    remoteStart: string;
+    remoteStarting: string;
+    remoteStop: string;
+    remoteStopping: string;
+    remoteInstalledLabel: string;
+    remoteInstalledYes: string;
+    remoteInstalledNo: string;
+    remoteSystemdLabel: string;
+    remoteEnabledLabel: string;
+    remoteRunningLabel: string;
+    remotePidLabel: string;
+    remoteServiceLabel: string;
+    remoteBaseUrlLabel: string;
+    remoteApiKeyLabel: string;
+    remoteLogsLabel: string;
+    remoteLogsEmpty: string;
+    remoteReadLogs: string;
+    remoteReadingLogs: string;
+    remoteLastErrorLabel: string;
+    remoteStatusUnknown: string;
     cloudflaredKicker: string;
     cloudflaredTitle: string;
     cloudflaredDescription: string;
@@ -308,6 +358,18 @@ export type MessageCatalog = {
     proxyStopFailed: (error: string) => string;
     proxyKeyRefreshed: string;
     proxyKeyRefreshFailed: (error: string) => string;
+    installingDependency: (name: string) => string;
+    dependencyInstalled: (name: string) => string;
+    dependencyInstallFailed: (name: string, error: string) => string;
+    remoteStatusFailed: (label: string, error: string) => string;
+    remoteProxyDeployed: (label: string) => string;
+    remoteProxyDeployFailed: (label: string, error: string) => string;
+    remoteProxyStarted: (label: string) => string;
+    remoteProxyStartFailed: (label: string, error: string) => string;
+    remoteProxyStopped: (label: string) => string;
+    remoteProxyStopFailed: (label: string, error: string) => string;
+    remoteLogsFailed: (label: string, error: string) => string;
+    pickIdentityFileFailed: (error: string) => string;
     cloudflaredInstalled: string;
     cloudflaredInstallFailed: (error: string) => string;
     cloudflaredPublicUrlFallback: string;
@@ -410,6 +472,27 @@ function compileLocale(raw: RawMessageCatalog): MessageCatalog {
       proxyStopFailed: (error) => fillTemplate(raw.notices.proxyStopFailed, { error }),
       proxyKeyRefreshFailed: (error) =>
         fillTemplate(raw.notices.proxyKeyRefreshFailed, { error }),
+      installingDependency: (name) =>
+        fillTemplate(raw.notices.installingDependency, { name }),
+      dependencyInstalled: (name) =>
+        fillTemplate(raw.notices.dependencyInstalled, { name }),
+      dependencyInstallFailed: (name, error) =>
+        fillTemplate(raw.notices.dependencyInstallFailed, { name, error }),
+      remoteStatusFailed: (label, error) =>
+        fillTemplate(raw.notices.remoteStatusFailed, { label, error }),
+      remoteProxyDeployed: (label) => fillTemplate(raw.notices.remoteProxyDeployed, { label }),
+      remoteProxyDeployFailed: (label, error) =>
+        fillTemplate(raw.notices.remoteProxyDeployFailed, { label, error }),
+      remoteProxyStarted: (label) => fillTemplate(raw.notices.remoteProxyStarted, { label }),
+      remoteProxyStartFailed: (label, error) =>
+        fillTemplate(raw.notices.remoteProxyStartFailed, { label, error }),
+      remoteProxyStopped: (label) => fillTemplate(raw.notices.remoteProxyStopped, { label }),
+      remoteProxyStopFailed: (label, error) =>
+        fillTemplate(raw.notices.remoteProxyStopFailed, { label, error }),
+      remoteLogsFailed: (label, error) =>
+        fillTemplate(raw.notices.remoteLogsFailed, { label, error }),
+      pickIdentityFileFailed: (error) =>
+        fillTemplate(raw.notices.pickIdentityFileFailed, { error }),
       cloudflaredInstallFailed: (error) =>
         fillTemplate(raw.notices.cloudflaredInstallFailed, { error }),
       cloudflaredStarted: (target) => fillTemplate(raw.notices.cloudflaredStarted, { target }),

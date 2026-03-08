@@ -41,9 +41,18 @@ function App() {
     currentCount,
     apiProxyStatus,
     cloudflaredStatus,
+    remoteProxyStatuses,
+    remoteProxyLogs,
     startingApiProxy,
     stoppingApiProxy,
     refreshingApiProxyKey,
+    refreshingRemoteProxyId,
+    deployingRemoteProxyId,
+    startingRemoteProxyId,
+    stoppingRemoteProxyId,
+    readingRemoteLogsId,
+    installingDependencyName,
+    installingDependencyTargetId,
     installingCloudflared,
     startingCloudflared,
     stoppingCloudflared,
@@ -60,6 +69,12 @@ function App() {
     onStartApiProxy,
     onStopApiProxy,
     onRefreshApiProxyKey,
+    onRefreshRemoteProxyStatus,
+    onDeployRemoteProxy,
+    onStartRemoteProxy,
+    onStopRemoteProxy,
+    onReadRemoteProxyLogs,
+    onPickLocalIdentityFile,
     loadCloudflaredStatus,
     onInstallCloudflared,
     onStartCloudflared,
@@ -67,6 +82,7 @@ function App() {
     onDelete,
     onSwitch,
     onSmartSwitch,
+    onUpdateRemoteServers,
     smartSwitching,
   } = useCodexController();
 
@@ -161,10 +177,20 @@ function App() {
               cloudflaredStatus={cloudflaredStatus}
               accountCount={accounts.length}
               autoStartEnabled={settings.autoStartApiProxy}
+              remoteServers={settings.remoteServers}
+              remoteStatuses={remoteProxyStatuses}
+              remoteLogs={remoteProxyLogs}
               savingSettings={savingSettings}
               starting={startingApiProxy}
               stopping={stoppingApiProxy}
               refreshingApiKey={refreshingApiProxyKey}
+              refreshingRemoteId={refreshingRemoteProxyId}
+              deployingRemoteId={deployingRemoteProxyId}
+              startingRemoteId={startingRemoteProxyId}
+              stoppingRemoteId={stoppingRemoteProxyId}
+              readingRemoteLogsId={readingRemoteLogsId}
+              installingDependencyName={installingDependencyName}
+              installingDependencyTargetId={installingDependencyTargetId}
               installingCloudflared={installingCloudflared}
               startingCloudflared={startingCloudflared}
               stoppingCloudflared={stoppingCloudflared}
@@ -177,6 +203,13 @@ function App() {
                   { autoStartApiProxy: enabled },
                   { silent: true, keepInteractive: true },
                 )}
+              onUpdateRemoteServers={(servers) => void onUpdateRemoteServers(servers)}
+              onRefreshRemoteStatus={(server) => void onRefreshRemoteProxyStatus(server)}
+              onDeployRemote={(server) => void onDeployRemoteProxy(server)}
+              onStartRemote={(server) => void onStartRemoteProxy(server)}
+              onStopRemote={(server) => void onStopRemoteProxy(server)}
+              onReadRemoteLogs={(server) => void onReadRemoteProxyLogs(server)}
+              onPickLocalIdentityFile={() => onPickLocalIdentityFile()}
               onRefreshCloudflared={() => void loadCloudflaredStatus()}
               onInstallCloudflared={() => void onInstallCloudflared()}
               onStartCloudflared={(input) => void onStartCloudflared(input)}

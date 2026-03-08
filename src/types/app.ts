@@ -82,6 +82,34 @@ export type ApiProxyStatus = {
   lastError: string | null;
 };
 
+export type RemoteAuthMode = "keyContent" | "keyFile" | "keyPath" | "password";
+
+export type RemoteServerConfig = {
+  id: string;
+  label: string;
+  host: string;
+  sshPort: number;
+  sshUser: string;
+  authMode: RemoteAuthMode;
+  identityFile: string | null;
+  privateKey: string | null;
+  password: string | null;
+  remoteDir: string;
+  listenPort: number;
+};
+
+export type RemoteProxyStatus = {
+  installed: boolean;
+  serviceInstalled: boolean;
+  running: boolean;
+  enabled: boolean;
+  serviceName: string;
+  pid: number | null;
+  baseUrl: string;
+  apiKey: string | null;
+  lastError: string | null;
+};
+
 export type CloudflaredTunnelMode = "quick" | "named";
 
 export type CloudflaredStatus = {
@@ -151,6 +179,7 @@ export type AppSettings = {
   restartEditorsOnSwitch: boolean;
   restartEditorTargets: EditorAppId[];
   autoStartApiProxy: boolean;
+  remoteServers: RemoteServerConfig[];
   locale: AppLocale;
 };
 

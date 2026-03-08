@@ -1148,6 +1148,282 @@ button.danger {
   color: var(--error-text);
 }
 
+.remoteSection {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--card) 92%, white 8%),
+    color-mix(in srgb, var(--card) 96%, transparent)
+  );
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.58);
+}
+
+.remoteSectionHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.remoteSectionHeader h3 {
+  margin: 0;
+  font: 400 clamp(1.4rem, 2vw, 2rem) / 1.08 "Bebas Neue", sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.remoteEmptyCard,
+.remoteServerCard {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  background: color-mix(in srgb, var(--body-bg) 18%, transparent);
+}
+
+.remoteEmptyCard strong {
+  display: block;
+  font: 700 1rem/1.2 "IBM Plex Sans", sans-serif;
+  color: color-mix(in srgb, var(--ink) 92%, white 8%);
+}
+
+.remoteEmptyCard p {
+  margin: 8px 0 0;
+  color: var(--subtle);
+  font: 500 0.84rem/1.45 "IBM Plex Sans", sans-serif;
+}
+
+.remoteServerList {
+  display: grid;
+  gap: 14px;
+}
+
+.remoteServerCard {
+  display: grid;
+  gap: 14px;
+}
+
+.remoteServerGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.remoteServerField {
+  display: grid;
+  gap: 8px;
+}
+
+.remoteServerField span {
+  color: var(--subtle);
+  font: 700 0.72rem/1 "IBM Plex Sans", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.remoteServerField input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 14px;
+  background: color-mix(in srgb, var(--card) 90%, white 10%);
+  color: var(--ink);
+  font: 600 0.9rem/1 "IBM Plex Sans", sans-serif;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.remoteServerField input:focus {
+  border-color: var(--button-primary-border);
+  box-shadow: 0 0 0 4px rgba(255, 143, 56, 0.12);
+}
+
+.remoteServerTextarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--card) 90%, white 10%);
+  color: var(--ink);
+  font: 600 0.84rem/1.45 "IBM Plex Mono", monospace;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.remoteServerTextarea:focus {
+  border-color: var(--button-primary-border);
+  box-shadow: 0 0 0 4px rgba(255, 143, 56, 0.12);
+}
+
+.remoteAuthRow {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.remoteAuthSelectField {
+  align-self: start;
+}
+
+.remoteAuthPicker {
+  width: 100%;
+  min-width: 0;
+}
+
+.remoteAuthInputArea {
+  min-width: 0;
+}
+
+.remoteIdentityRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.remoteServerFileRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.remoteServerBinaryMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.remoteServerBinaryMeta strong {
+  font: 700 0.96rem/1.25 "IBM Plex Sans", sans-serif;
+  color: color-mix(in srgb, var(--ink) 92%, white 8%);
+  word-break: break-word;
+}
+
+.remoteServerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.remoteDependencyInstall {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--brand) 22%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--card) 86%, white 14%),
+    color-mix(in srgb, var(--brand-soft) 45%, white 55%)
+  );
+}
+
+.remoteDependencyInstallHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.remoteDependencyInstallHeader strong {
+  font: 700 0.95rem/1.3 "IBM Plex Sans", sans-serif;
+  color: color-mix(in srgb, var(--ink) 92%, white 8%);
+}
+
+.remoteDependencyInstallTrack {
+  position: relative;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 76%, white 24%);
+}
+
+.remoteDependencyInstallFill {
+  position: absolute;
+  inset: 0 auto 0 -38%;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand) 88%, white 12%),
+    color-mix(in srgb, var(--brand-strong) 80%, white 20%)
+  );
+  animation: remoteDependencyInstallPulse 1.15s ease-in-out infinite;
+}
+
+@keyframes remoteDependencyInstallPulse {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+.remoteServerStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.remoteServerMeta {
+  min-width: 120px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 92%, white 8%);
+}
+
+.remoteServerMeta span {
+  color: var(--subtle);
+  font: 700 0.72rem/1 "IBM Plex Sans", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.remoteServerMeta strong {
+  font: 700 1rem/1 "IBM Plex Mono", monospace;
+  color: color-mix(in srgb, var(--ink) 92%, white 8%);
+}
+
+.remoteServerHiddenInput {
+  display: none;
+}
+
+.remoteProxyDetailGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.remoteLogCard {
+  min-height: 0;
+}
+
+.remoteLogCode {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.remoteErrorCard {
+  min-height: 0;
+}
+
 .cloudflaredSection {
   display: grid;
   gap: 16px;
@@ -1934,8 +2210,12 @@ button.bottomDockButton.isActive:focus-visible {
   }
 
   .cloudflaredHeader,
+  .remoteSectionHeader,
   .cloudflaredToolbar,
-  .cloudflaredInstallCard {
+  .cloudflaredInstallCard,
+  .remoteServerFileRow,
+  .remoteAuthRow,
+  .remoteIdentityRow {
     grid-template-columns: 1fr;
   }
 
@@ -1960,9 +2240,15 @@ button.bottomDockButton.isActive:focus-visible {
 
   .proxyGrid,
   .proxyDetailGrid,
+  .remoteServerGrid,
+  .remoteProxyDetailGrid,
   .cloudflaredModeGrid,
   .cloudflaredFormGrid {
     grid-template-columns: 1fr;
+  }
+
+  .remoteServerActions {
+    justify-content: flex-start;
   }
 
   .proxyCard,

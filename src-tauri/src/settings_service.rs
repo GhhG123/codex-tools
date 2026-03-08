@@ -52,6 +52,9 @@ pub(crate) async fn update_app_settings_internal(
         if let Some(value) = patch.auto_start_api_proxy {
             store.settings.auto_start_api_proxy = value;
         }
+        if let Some(value) = patch.remote_servers {
+            store.settings.remote_servers = value;
+        }
         if let Some(value) = patch.locale {
             store.settings.locale = value;
         }

@@ -19,6 +19,8 @@ import type {
   InstalledEditorApp,
   Notice,
   PendingUpdateInfo,
+  RemoteProxyStatus,
+  RemoteServerConfig,
   StartCloudflaredTunnelInput,
   SwitchAccountResult,
   UpdateSettingsOptions,
@@ -40,6 +42,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   restartEditorsOnSwitch: false,
   restartEditorTargets: [],
   autoStartApiProxy: false,
+  remoteServers: [],
   locale: DEFAULT_LOCALE,
 };
 const DEFAULT_API_PROXY_STATUS: ApiProxyStatus = {
@@ -111,6 +114,23 @@ function buildImportNotice(
   };
 }
 
+function buildRemoteProxyFallback(
+  server: RemoteServerConfig,
+  lastError: string,
+): RemoteProxyStatus {
+  return {
+    installed: false,
+    serviceInstalled: false,
+    running: false,
+    enabled: false,
+    serviceName: `codex-tools-proxyd-${server.id}.service`,
+    pid: null,
+    baseUrl: `http://${server.host}:${server.listenPort}/v1`,
+    apiKey: null,
+    lastError,
+  };
+}
+
 export function useCodexController() {
   const { copy, locale } = useI18n();
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
@@ -122,9 +142,18 @@ export function useCodexController() {
   const [importingUpload, setImportingUpload] = useState(false);
   const [apiProxyStatus, setApiProxyStatus] = useState<ApiProxyStatus>(DEFAULT_API_PROXY_STATUS);
   const [cloudflaredStatus, setCloudflaredStatus] = useState<CloudflaredStatus>(DEFAULT_CLOUDFLARED_STATUS);
+  const [remoteProxyStatusesRaw, setRemoteProxyStatusesRaw] = useState<Record<string, RemoteProxyStatus>>({});
+  const [remoteProxyLogs, setRemoteProxyLogs] = useState<Record<string, string>>({});
   const [startingApiProxy, setStartingApiProxy] = useState(false);
   const [stoppingApiProxy, setStoppingApiProxy] = useState(false);
   const [refreshingApiProxyKey, setRefreshingApiProxyKey] = useState(false);
+  const [refreshingRemoteProxyId, setRefreshingRemoteProxyId] = useState<string | null>(null);
+  const [deployingRemoteProxyId, setDeployingRemoteProxyId] = useState<string | null>(null);
+  const [startingRemoteProxyId, setStartingRemoteProxyId] = useState<string | null>(null);
+  const [stoppingRemoteProxyId, setStoppingRemoteProxyId] = useState<string | null>(null);
+  const [readingRemoteLogsId, setReadingRemoteLogsId] = useState<string | null>(null);
+  const [installingDependencyName, setInstallingDependencyName] = useState<string | null>(null);
+  const [installingDependencyTargetId, setInstallingDependencyTargetId] = useState<string | null>(null);
   const [installingCloudflared, setInstallingCloudflared] = useState(false);
   const [startingCloudflared, setStartingCloudflared] = useState(false);
   const [stoppingCloudflared, setStoppingCloudflared] = useState(false);
@@ -180,6 +209,14 @@ export function useCodexController() {
     [localizeError],
   );
 
+  const localizeRemoteProxyStatus = useCallback(
+    (status: RemoteProxyStatus): RemoteProxyStatus => ({
+      ...status,
+      lastError: status.lastError ? localizeError(status.lastError) : null,
+    }),
+    [localizeError],
+  );
+
   const localizeImportResult = useCallback(
     (result: ImportAccountsResult): ImportAccountsResult => ({
       ...result,
@@ -189,6 +226,17 @@ export function useCodexController() {
       })),
     }),
     [localizeError],
+  );
+
+  const remoteProxyStatuses = useMemo<Record<string, RemoteProxyStatus>>(
+    () =>
+      Object.fromEntries(
+        Object.entries(remoteProxyStatusesRaw).map(([id, status]) => [
+          id,
+          localizeRemoteProxyStatus(status),
+        ]),
+      ),
+    [localizeRemoteProxyStatus, remoteProxyStatusesRaw],
   );
 
   const loadAccounts = useCallback(async () => {
@@ -514,6 +562,70 @@ export function useCodexController() {
   }, [loadAccounts, loadApiProxyStatus, loadCloudflaredStatus, loading, locale]);
 
   useEffect(() => {
+    setRemoteProxyStatusesRaw((current) => {
+      const activeIds = new Set(settings.remoteServers.map((server) => server.id));
+      let changed = false;
+      const next: Record<string, RemoteProxyStatus> = {};
+
+      for (const [id, status] of Object.entries(current)) {
+        if (activeIds.has(id)) {
+          next[id] = status;
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+    setRemoteProxyLogs((current) => {
+      const activeIds = new Set(settings.remoteServers.map((server) => server.id));
+      let changed = false;
+      const next: Record<string, string> = {};
+
+      for (const [id, logText] of Object.entries(current)) {
+        if (activeIds.has(id)) {
+          next[id] = logText;
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [settings.remoteServers]);
+
+  useEffect(() => {
+    if (loading || settings.remoteServers.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      settings.remoteServers.map(async (server) => {
+        try {
+          const status = await invoke<RemoteProxyStatus>("get_remote_proxy_status", { server });
+          return [server.id, status] as const;
+        } catch (error) {
+          return [server.id, buildRemoteProxyFallback(server, String(error))] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) {
+        return;
+      }
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, settings.remoteServers]);
+
+  useEffect(() => {
     if (!apiProxyStatus.running) {
       return;
     }
@@ -799,6 +911,215 @@ export function useCodexController() {
     }
   }, [copy.notices, localizeApiProxyStatus, localizeError, refreshingApiProxyKey]);
 
+  const ensureRemoteLocalDependency = useCallback(
+    async (server: RemoteServerConfig) => {
+      if (server.authMode !== "password") {
+        return true;
+      }
+      if (installingDependencyName) {
+        return false;
+      }
+
+      try {
+        const available = await invoke<boolean>("is_sshpass_available");
+        if (available) {
+          return true;
+        }
+
+        setInstallingDependencyName("sshpass");
+        setInstallingDependencyTargetId(server.id);
+        setNotice({
+          type: "info",
+          message: copy.notices.installingDependency("sshpass"),
+        });
+        await invoke("install_sshpass");
+        setNotice({
+          type: "ok",
+          message: copy.notices.dependencyInstalled("sshpass"),
+        });
+        return true;
+      } catch (error) {
+        setNotice({
+          type: "error",
+          message: copy.notices.dependencyInstallFailed("sshpass", localizeError(String(error))),
+        });
+        return false;
+      } finally {
+        setInstallingDependencyName(null);
+        setInstallingDependencyTargetId(null);
+      }
+    },
+    [copy.notices, installingDependencyName, localizeError],
+  );
+
+  const onRefreshRemoteProxyStatus = useCallback(async (server: RemoteServerConfig) => {
+    if (refreshingRemoteProxyId === server.id) {
+      return;
+    }
+
+    if (!(await ensureRemoteLocalDependency(server))) {
+      return;
+    }
+
+    setRefreshingRemoteProxyId(server.id);
+    try {
+      const status = await invoke<RemoteProxyStatus>("get_remote_proxy_status", { server });
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: status,
+      }));
+    } catch (error) {
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: buildRemoteProxyFallback(server, String(error)),
+      }));
+      setNotice({
+        type: "error",
+        message: copy.notices.remoteStatusFailed(server.label, localizeError(String(error))),
+      });
+    } finally {
+      setRefreshingRemoteProxyId(null);
+    }
+  }, [copy.notices, ensureRemoteLocalDependency, localizeError, refreshingRemoteProxyId]);
+
+  const onDeployRemoteProxy = useCallback(async (server: RemoteServerConfig) => {
+    if (deployingRemoteProxyId === server.id) {
+      return;
+    }
+
+    if (!(await ensureRemoteLocalDependency(server))) {
+      return;
+    }
+
+    setDeployingRemoteProxyId(server.id);
+    try {
+      const status = await invoke<RemoteProxyStatus>("deploy_remote_proxy", {
+        input: {
+          server,
+        },
+      });
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: status,
+      }));
+      setNotice({ type: "ok", message: copy.notices.remoteProxyDeployed(server.label) });
+    } catch (error) {
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: buildRemoteProxyFallback(server, String(error)),
+      }));
+      setNotice({
+        type: "error",
+        message: copy.notices.remoteProxyDeployFailed(server.label, localizeError(String(error))),
+      });
+    } finally {
+      setDeployingRemoteProxyId(null);
+    }
+  }, [copy.notices, deployingRemoteProxyId, ensureRemoteLocalDependency, localizeError]);
+
+  const onStartRemoteProxy = useCallback(async (server: RemoteServerConfig) => {
+    if (startingRemoteProxyId === server.id) {
+      return;
+    }
+
+    if (!(await ensureRemoteLocalDependency(server))) {
+      return;
+    }
+
+    setStartingRemoteProxyId(server.id);
+    try {
+      const status = await invoke<RemoteProxyStatus>("start_remote_proxy", { server });
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: status,
+      }));
+      setNotice({ type: "ok", message: copy.notices.remoteProxyStarted(server.label) });
+    } catch (error) {
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: buildRemoteProxyFallback(server, String(error)),
+      }));
+      setNotice({
+        type: "error",
+        message: copy.notices.remoteProxyStartFailed(server.label, localizeError(String(error))),
+      });
+    } finally {
+      setStartingRemoteProxyId(null);
+    }
+  }, [copy.notices, ensureRemoteLocalDependency, localizeError, startingRemoteProxyId]);
+
+  const onStopRemoteProxy = useCallback(async (server: RemoteServerConfig) => {
+    if (stoppingRemoteProxyId === server.id) {
+      return;
+    }
+
+    if (!(await ensureRemoteLocalDependency(server))) {
+      return;
+    }
+
+    setStoppingRemoteProxyId(server.id);
+    try {
+      const status = await invoke<RemoteProxyStatus>("stop_remote_proxy", { server });
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: status,
+      }));
+      setNotice({ type: "ok", message: copy.notices.remoteProxyStopped(server.label) });
+    } catch (error) {
+      setRemoteProxyStatusesRaw((current) => ({
+        ...current,
+        [server.id]: buildRemoteProxyFallback(server, String(error)),
+      }));
+      setNotice({
+        type: "error",
+        message: copy.notices.remoteProxyStopFailed(server.label, localizeError(String(error))),
+      });
+    } finally {
+      setStoppingRemoteProxyId(null);
+    }
+  }, [copy.notices, ensureRemoteLocalDependency, localizeError, stoppingRemoteProxyId]);
+
+  const onReadRemoteProxyLogs = useCallback(async (server: RemoteServerConfig) => {
+    if (readingRemoteLogsId === server.id) {
+      return;
+    }
+
+    if (!(await ensureRemoteLocalDependency(server))) {
+      return;
+    }
+
+    setReadingRemoteLogsId(server.id);
+    try {
+      const output = await invoke<string>("read_remote_proxy_logs", {
+        server,
+        lines: 120,
+      });
+      setRemoteProxyLogs((current) => ({
+        ...current,
+        [server.id]: output.trim(),
+      }));
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: copy.notices.remoteLogsFailed(server.label, localizeError(String(error))),
+      });
+    } finally {
+      setReadingRemoteLogsId(null);
+    }
+  }, [copy.notices, ensureRemoteLocalDependency, localizeError, readingRemoteLogsId]);
+
+  const onPickLocalIdentityFile = useCallback(async () => {
+    try {
+      return await invoke<string | null>("pick_local_identity_file");
+    } catch (error) {
+      setNotice({
+        type: "error",
+        message: copy.notices.pickIdentityFileFailed(localizeError(String(error))),
+      });
+      return null;
+    }
+  }, [copy.notices, localizeError]);
+
   const onInstallCloudflared = useCallback(async () => {
     if (installingCloudflared) {
       return;
@@ -1014,6 +1335,16 @@ export function useCodexController() {
     await onSwitch(target);
   }, [copy.notices, onSwitch, sortedAccounts, switchingId]);
 
+  const onUpdateRemoteServers = useCallback(
+    async (remoteServers: RemoteServerConfig[]) => {
+      await updateSettings(
+        { remoteServers },
+        { silent: true, keepInteractive: true },
+      );
+    },
+    [updateSettings],
+  );
+
   return {
     accounts: sortedAccounts,
     loading,
@@ -1024,9 +1355,18 @@ export function useCodexController() {
     importingUpload,
     apiProxyStatus,
     cloudflaredStatus,
+    remoteProxyStatuses,
+    remoteProxyLogs,
     startingApiProxy,
     stoppingApiProxy,
     refreshingApiProxyKey,
+    refreshingRemoteProxyId,
+    deployingRemoteProxyId,
+    startingRemoteProxyId,
+    stoppingRemoteProxyId,
+    readingRemoteLogsId,
+    installingDependencyName,
+    installingDependencyTargetId,
     installingCloudflared,
     startingCloudflared,
     stoppingCloudflared,
@@ -1056,6 +1396,12 @@ export function useCodexController() {
     onStartApiProxy,
     onStopApiProxy,
     onRefreshApiProxyKey,
+    onRefreshRemoteProxyStatus,
+    onDeployRemoteProxy,
+    onStartRemoteProxy,
+    onStopRemoteProxy,
+    onReadRemoteProxyLogs,
+    onPickLocalIdentityFile,
     loadCloudflaredStatus,
     onInstallCloudflared,
     onStartCloudflared,
@@ -1063,6 +1409,7 @@ export function useCodexController() {
     onDelete,
     onSwitch,
     onSmartSwitch,
+    onUpdateRemoteServers,
     smartSwitching: switchingId !== null,
   };
 }

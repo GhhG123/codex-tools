@@ -8,6 +8,7 @@ mod models;
 mod opencode;
 pub mod proxy_daemon;
 mod proxy_service;
+mod remote_service;
 mod settings_service;
 mod state;
 mod store;
@@ -32,9 +33,12 @@ use models::AppSettingsPatch;
 use models::AuthJsonImportInput;
 use models::CloudflaredStatus;
 use models::CurrentAuthStatus;
+use models::DeployRemoteProxyInput;
 use models::EditorAppId;
 use models::ImportAccountsResult;
 use models::InstalledEditorApp;
+use models::RemoteProxyStatus;
+use models::RemoteServerConfig;
 use models::StartCloudflaredTunnelInput;
 use models::SwitchAccountResult;
 use state::AppState;
@@ -383,6 +387,52 @@ async fn stop_cloudflared_tunnel(state: State<'_, AppState>) -> Result<Cloudflar
     cloudflared_service::stop_cloudflared_tunnel_internal(state.inner()).await
 }
 
+#[tauri::command]
+async fn get_remote_proxy_status(server: RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    remote_service::get_remote_proxy_status_internal(server).await
+}
+
+#[tauri::command]
+async fn deploy_remote_proxy(
+    app: AppHandle,
+    input: DeployRemoteProxyInput,
+) -> Result<RemoteProxyStatus, String> {
+    remote_service::deploy_remote_proxy_internal(&app, input).await
+}
+
+#[tauri::command]
+async fn start_remote_proxy(server: RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    remote_service::start_remote_proxy_internal(server).await
+}
+
+#[tauri::command]
+async fn stop_remote_proxy(server: RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    remote_service::stop_remote_proxy_internal(server).await
+}
+
+#[tauri::command]
+async fn read_remote_proxy_logs(
+    server: RemoteServerConfig,
+    lines: Option<usize>,
+) -> Result<String, String> {
+    remote_service::read_remote_proxy_logs_internal(server, lines.unwrap_or(120)).await
+}
+
+#[tauri::command]
+async fn pick_local_identity_file() -> Result<Option<String>, String> {
+    remote_service::pick_local_identity_file_internal().await
+}
+
+#[tauri::command]
+async fn is_sshpass_available() -> Result<bool, String> {
+    Ok(remote_service::is_sshpass_available_internal().await)
+}
+
+#[tauri::command]
+async fn install_sshpass() -> Result<(), String> {
+    remote_service::install_sshpass_internal().await
+}
+
 fn force_stop_running_codex() {
     #[cfg(target_os = "macos")]
     {
@@ -559,7 +609,15 @@ pub fn run() {
             get_cloudflared_status,
             install_cloudflared,
             start_cloudflared_tunnel,
-            stop_cloudflared_tunnel
+            stop_cloudflared_tunnel,
+            get_remote_proxy_status,
+            deploy_remote_proxy,
+            start_remote_proxy,
+            stop_remote_proxy,
+            read_remote_proxy_logs,
+            pick_local_identity_file,
+            is_sshpass_available,
+            install_sshpass
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

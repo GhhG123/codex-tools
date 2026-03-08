@@ -1,0 +1,954 @@
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use rfd::FileDialog;
+use tauri::AppHandle;
+use tauri::Manager;
+
+use crate::models::AccountsStore;
+use crate::models::DeployRemoteProxyInput;
+use crate::models::RemoteAuthMode;
+use crate::models::RemoteProxyStatus;
+use crate::models::RemoteServerConfig;
+use crate::store::account_store_path_from_data_dir;
+use crate::utils::now_unix_seconds;
+
+const REMOTE_BINARY_NAME: &str = "codex-tools-proxyd";
+
+pub(crate) async fn get_remote_proxy_status_internal(
+    server: RemoteServerConfig,
+) -> Result<RemoteProxyStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || get_remote_proxy_status_sync(&server))
+        .await
+        .map_err(|error| format!("查询远程代理状态失败: {error}"))?
+}
+
+pub(crate) async fn deploy_remote_proxy_internal(
+    app: &AppHandle,
+    input: DeployRemoteProxyInput,
+) -> Result<RemoteProxyStatus, String> {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || deploy_remote_proxy_sync(&app, input.server))
+        .await
+        .map_err(|error| format!("部署远程代理失败: {error}"))?
+}
+
+pub(crate) async fn start_remote_proxy_internal(
+    server: RemoteServerConfig,
+) -> Result<RemoteProxyStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || start_remote_proxy_sync(&server))
+        .await
+        .map_err(|error| format!("启动远程代理失败: {error}"))?
+}
+
+pub(crate) async fn stop_remote_proxy_internal(
+    server: RemoteServerConfig,
+) -> Result<RemoteProxyStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || stop_remote_proxy_sync(&server))
+        .await
+        .map_err(|error| format!("停止远程代理失败: {error}"))?
+}
+
+pub(crate) async fn read_remote_proxy_logs_internal(
+    server: RemoteServerConfig,
+    lines: usize,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || read_remote_proxy_logs_sync(&server, lines))
+        .await
+        .map_err(|error| format!("读取远程代理日志失败: {error}"))?
+}
+
+pub(crate) async fn pick_local_identity_file_internal() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(
+            FileDialog::new()
+                .set_title("选择 SSH 私钥文件")
+                .pick_file()
+                .map(|path| path.to_string_lossy().to_string()),
+        )
+    })
+    .await
+    .map_err(|error| format!("打开本地文件选择器失败: {error}"))?
+}
+
+pub(crate) async fn is_sshpass_available_internal() -> bool {
+    tauri::async_runtime::spawn_blocking(command_sshpass_available)
+        .await
+        .unwrap_or(false)
+}
+
+pub(crate) async fn install_sshpass_internal() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(install_sshpass_sync)
+        .await
+        .map_err(|error| format!("安装 sshpass 失败: {error}"))?
+}
+
+fn deploy_remote_proxy_sync(app: &AppHandle, server: RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    let server = validate_remote_server(&server)?;
+    ensure_ssh_tools_available_for(&server)?;
+
+    let built_binary = build_linux_binary_for_server(&server)?;
+    let accounts_json = local_accounts_store_json(app)?;
+    let service_name = remote_systemd_service_name(&server);
+    let service_content = render_systemd_unit(&server, &service_name);
+
+    let temp_dir = env::temp_dir().join(format!("codex-tools-remote-{}", now_unix_seconds()));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|error| format!("创建远程部署临时目录失败 {}: {error}", temp_dir.display()))?;
+
+    let binary_path = temp_dir.join(REMOTE_BINARY_NAME);
+    let accounts_path = temp_dir.join("accounts.json");
+    let service_path = temp_dir.join(&service_name);
+    fs::copy(&built_binary, &binary_path)
+        .map_err(|error| format!("写入远程代理二进制临时文件失败 {}: {error}", binary_path.display()))?;
+    fs::write(&accounts_path, accounts_json)
+        .map_err(|error| format!("写入远程账号存储临时文件失败 {}: {error}", accounts_path.display()))?;
+    fs::write(&service_path, service_content)
+        .map_err(|error| format!("写入远程 systemd 服务文件失败 {}: {error}", service_path.display()))?;
+
+    let stage_dir = format!(
+        "/tmp/codex-tools-remote-{}-{}",
+        sanitize_service_fragment(&server.id),
+        now_unix_seconds()
+    );
+
+    run_ssh(&server, &format!("mkdir -p {}", shell_quote(&stage_dir)))?;
+    run_scp(
+        &server,
+        &binary_path,
+        &format!("{stage_dir}/{REMOTE_BINARY_NAME}"),
+    )?;
+    run_scp(
+        &server,
+        &accounts_path,
+        &format!("{stage_dir}/accounts.json"),
+    )?;
+    run_scp(
+        &server,
+        &service_path,
+        &format!("{stage_dir}/{service_name}"),
+    )?;
+
+    run_root_ssh(
+        &server,
+        &format!(
+            "STAGE={stage}; DIR={dir}; UNIT_NAME={unit}; \
+mkdir -p \"$DIR\"; \
+mv \"$STAGE/{bin}\" \"$DIR/{bin}\"; chmod 700 \"$DIR/{bin}\"; \
+mv \"$STAGE/accounts.json\" \"$DIR/accounts.json\"; chmod 600 \"$DIR/accounts.json\"; \
+mv \"$STAGE/$UNIT_NAME\" \"/etc/systemd/system/$UNIT_NAME\"; chmod 644 \"/etc/systemd/system/$UNIT_NAME\"; \
+rm -rf \"$STAGE\"; \
+systemctl daemon-reload; \
+systemctl enable \"$UNIT_NAME\" >/dev/null 2>&1 || true; \
+if systemctl is-active --quiet \"$UNIT_NAME\"; then systemctl restart \"$UNIT_NAME\"; else systemctl start \"$UNIT_NAME\"; fi",
+            stage = shell_quote(&stage_dir),
+            dir = shell_quote(&server.remote_dir),
+            unit = shell_quote(&service_name),
+            bin = REMOTE_BINARY_NAME,
+        ),
+    )?;
+
+    let _ = fs::remove_file(&binary_path);
+    let _ = fs::remove_file(&accounts_path);
+    let _ = fs::remove_file(&service_path);
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    get_remote_proxy_status_sync(&server)
+}
+
+fn start_remote_proxy_sync(server: &RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    let server = validate_remote_server(server)?;
+    ensure_ssh_tools_available_for(&server)?;
+    let service_name = remote_systemd_service_name(&server);
+    run_root_ssh(
+        &server,
+        &format!("systemctl start {}", shell_quote(&service_name)),
+    )?;
+    get_remote_proxy_status_sync(&server)
+}
+
+fn stop_remote_proxy_sync(server: &RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    let server = validate_remote_server(server)?;
+    ensure_ssh_tools_available_for(&server)?;
+    let service_name = remote_systemd_service_name(&server);
+    run_root_ssh(
+        &server,
+        &format!("systemctl stop {}", shell_quote(&service_name)),
+    )?;
+    get_remote_proxy_status_sync(&server)
+}
+
+fn read_remote_proxy_logs_sync(server: &RemoteServerConfig, lines: usize) -> Result<String, String> {
+    let server = validate_remote_server(server)?;
+    ensure_ssh_tools_available_for(&server)?;
+    let service_name = remote_systemd_service_name(&server);
+    let safe_lines = lines.clamp(20, 400);
+    run_root_ssh(
+        &server,
+        &format!(
+            "if ! command -v journalctl >/dev/null 2>&1; then echo missing_journalctl; exit 41; fi; \
+journalctl -u {} -n {} --no-pager",
+            shell_quote(&service_name),
+            safe_lines
+        ),
+    )
+}
+
+fn get_remote_proxy_status_sync(server: &RemoteServerConfig) -> Result<RemoteProxyStatus, String> {
+    let server = validate_remote_server(server)?;
+    ensure_ssh_tools_available_for(&server)?;
+    let service_name = remote_systemd_service_name(&server);
+    let command = format!(
+        "DIR={dir}; BIN=\"$DIR/{bin}\"; KEYFILE=\"$DIR/api-proxy.key\"; UNIT={unit}; \
+INSTALLED=0; SERVICE_INSTALLED=0; RUNNING=0; ENABLED=0; PID=\"\"; API_KEY=\"\"; \
+if [ -x \"$BIN\" ]; then INSTALLED=1; fi; \
+if command -v systemctl >/dev/null 2>&1; then \
+  if [ -f \"/etc/systemd/system/$UNIT\" ] || [ -f \"/lib/systemd/system/$UNIT\" ]; then SERVICE_INSTALLED=1; fi; \
+  ENABLED_STATE=$(systemctl is-enabled \"$UNIT\" 2>/dev/null || true); \
+  if [ \"$ENABLED_STATE\" = \"enabled\" ]; then ENABLED=1; fi; \
+  ACTIVE_STATE=$(systemctl is-active \"$UNIT\" 2>/dev/null || true); \
+  if [ \"$ACTIVE_STATE\" = \"active\" ]; then RUNNING=1; fi; \
+  PID=$(systemctl show -p MainPID --value \"$UNIT\" 2>/dev/null || true); \
+  if [ \"$PID\" = \"0\" ]; then PID=\"\"; fi; \
+fi; \
+if [ -f \"$KEYFILE\" ]; then API_KEY=$(cat \"$KEYFILE\" 2>/dev/null || true); fi; \
+printf 'installed=%s\\nservice_installed=%s\\nrunning=%s\\nenabled=%s\\npid=%s\\napi_key=%s\\n' \"$INSTALLED\" \"$SERVICE_INSTALLED\" \"$RUNNING\" \"$ENABLED\" \"$PID\" \"$API_KEY\"",
+        dir = shell_quote(&server.remote_dir),
+        bin = REMOTE_BINARY_NAME,
+        unit = shell_quote(&service_name),
+    );
+
+    let output = run_ssh(&server, &command)?;
+    let mut installed = false;
+    let mut service_installed = false;
+    let mut running = false;
+    let mut enabled = false;
+    let mut pid = None;
+    let mut api_key = None;
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("installed=") {
+            installed = value.trim() == "1";
+        } else if let Some(value) = line.strip_prefix("service_installed=") {
+            service_installed = value.trim() == "1";
+        } else if let Some(value) = line.strip_prefix("running=") {
+            running = value.trim() == "1";
+        } else if let Some(value) = line.strip_prefix("enabled=") {
+            enabled = value.trim() == "1";
+        } else if let Some(value) = line.strip_prefix("pid=") {
+            pid = value.trim().parse::<u32>().ok();
+        } else if let Some(value) = line.strip_prefix("api_key=") {
+            let key = value.trim();
+            if !key.is_empty() {
+                api_key = Some(key.to_string());
+            }
+        }
+    }
+
+    Ok(RemoteProxyStatus {
+        installed,
+        service_installed,
+        running,
+        enabled,
+        service_name,
+        pid,
+        base_url: format!("http://{}:{}/v1", server.host, server.listen_port),
+        api_key,
+        last_error: None,
+    })
+}
+
+fn validate_remote_server(server: &RemoteServerConfig) -> Result<RemoteServerConfig, String> {
+    let mut normalized = server.clone();
+    normalized.label = normalized.label.trim().to_string();
+    normalized.host = normalized.host.trim().to_string();
+    normalized.ssh_user = normalized.ssh_user.trim().to_string();
+    normalized.remote_dir = normalized.remote_dir.trim().to_string();
+    normalized.identity_file = normalized
+        .identity_file
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    normalized.private_key = normalized
+        .private_key
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    normalized.password = normalized
+        .password
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if normalized.label.is_empty() {
+        return Err("远程服务器名称不能为空".to_string());
+    }
+    if normalized.host.is_empty() {
+        return Err("远程服务器 Host 不能为空".to_string());
+    }
+    if normalized.ssh_user.is_empty() {
+        return Err("远程服务器 SSH 用户不能为空".to_string());
+    }
+    if normalized.remote_dir.is_empty() {
+        return Err("远程服务器部署目录不能为空".to_string());
+    }
+    if normalized.ssh_port == 0 {
+        return Err("远程服务器 SSH 端口无效".to_string());
+    }
+    if normalized.listen_port == 0 {
+        return Err("远程服务器代理端口无效".to_string());
+    }
+
+    match normalized.auth_mode {
+        RemoteAuthMode::KeyContent => {
+            if normalized.private_key.is_none() {
+                return Err("SSH 私钥内容不能为空".to_string());
+            }
+        }
+        RemoteAuthMode::KeyFile | RemoteAuthMode::KeyPath => {
+            if normalized.identity_file.is_none() {
+                return Err("SSH 私钥路径不能为空".to_string());
+            }
+        }
+        RemoteAuthMode::Password => {
+            if normalized.password.is_none() {
+                return Err("SSH 密码不能为空".to_string());
+            }
+        }
+    }
+
+    Ok(normalized)
+}
+
+fn build_linux_binary_for_server(server: &RemoteServerConfig) -> Result<PathBuf, String> {
+    ensure_command_available("cargo", "未检测到 cargo 命令，请先安装 Rust 工具链。")?;
+    let platform = detect_remote_platform(server)?;
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let output_targets = [platform.primary_target, platform.fallback_target];
+    let mut attempts = Vec::new();
+    let mut cross_available = command_exists("cross");
+    let mut zigbuild_available = cargo_subcommand_available("zigbuild");
+    let mut zig_available = command_exists("zig");
+
+    if !cfg!(target_os = "linux") && !cross_available && !(zigbuild_available && zig_available) {
+        ensure_linux_build_dependencies_available()?;
+        cross_available = command_exists("cross");
+        zigbuild_available = cargo_subcommand_available("zigbuild");
+        zig_available = command_exists("zig");
+    }
+
+    for target in output_targets {
+        let binary_path = manifest_dir
+            .join("target")
+            .join(target)
+            .join("release")
+            .join(REMOTE_BINARY_NAME);
+
+        if cross_available {
+            let mut command = Command::new("cross");
+            command
+                .current_dir(&manifest_dir)
+                .args([
+                    "build",
+                    "--release",
+                    "--bin",
+                    REMOTE_BINARY_NAME,
+                    "--target",
+                    target,
+                ]);
+            match run_local_command(&mut command) {
+                Ok(()) if binary_path.exists() => return Ok(binary_path),
+                Ok(()) => attempts.push(format!("cross {target}: 未找到构建产物")),
+                Err(error) => attempts.push(format!("cross {target}: {error}")),
+            }
+        }
+
+        if zigbuild_available && zig_available {
+            let mut command = Command::new("cargo");
+            command
+                .current_dir(&manifest_dir)
+                .args([
+                    "zigbuild",
+                    "--release",
+                    "--bin",
+                    REMOTE_BINARY_NAME,
+                    "--target",
+                    target,
+                ]);
+            match run_local_command(&mut command) {
+                Ok(()) if binary_path.exists() => return Ok(binary_path),
+                Ok(()) => attempts.push(format!("cargo zigbuild {target}: 未找到构建产物")),
+                Err(error) => attempts.push(format!("cargo zigbuild {target}: {error}")),
+            }
+        }
+
+        let _ = ensure_rust_target(target);
+        let mut command = Command::new("cargo");
+        command
+            .current_dir(&manifest_dir)
+            .args([
+                "build",
+                "--release",
+                "--bin",
+                REMOTE_BINARY_NAME,
+                "--target",
+                target,
+            ]);
+        match run_local_command(&mut command) {
+            Ok(()) if binary_path.exists() => return Ok(binary_path),
+            Ok(()) => attempts.push(format!("cargo build {target}: 未找到构建产物")),
+            Err(error) => attempts.push(format!("cargo build {target}: {error}")),
+        }
+    }
+
+    Err(format!(
+        "自动构建 Linux 二进制失败。已尝试自动补齐本机 Linux 构建依赖，但仍未完成交叉编译。{}",
+        if attempts.is_empty() {
+            String::new()
+        } else {
+            format!(" 详情: {}", attempts.join(" | "))
+        }
+    ))
+}
+
+fn detect_remote_platform(server: &RemoteServerConfig) -> Result<RemotePlatform, String> {
+    let output = run_ssh(server, "uname -s && uname -m")?;
+    let mut lines = output.lines().map(str::trim).filter(|line| !line.is_empty());
+    let os_name = lines.next().unwrap_or_default();
+    let arch = lines.next().unwrap_or_default();
+
+    if os_name != "Linux" {
+        return Err(format!("远程系统不是 Linux，当前检测到的是 {os_name}"));
+    }
+
+    match arch {
+        "x86_64" | "amd64" => Ok(RemotePlatform {
+            primary_target: "x86_64-unknown-linux-musl",
+            fallback_target: "x86_64-unknown-linux-gnu",
+        }),
+        "aarch64" | "arm64" => Ok(RemotePlatform {
+            primary_target: "aarch64-unknown-linux-musl",
+            fallback_target: "aarch64-unknown-linux-gnu",
+        }),
+        other => Err(format!("暂不支持的远程 Linux 架构: {other}")),
+    }
+}
+
+fn render_systemd_unit(server: &RemoteServerConfig, service_name: &str) -> String {
+    format!(
+        "[Unit]\nDescription=Codex Tools Remote API Proxy ({})\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory={dir}\nExecStart={dir}/{bin} serve --data-dir {dir} --host 0.0.0.0 --port {port} --no-sync-current-auth\nRestart=always\nRestartSec=3\nEnvironment=RUST_LOG=info\n\n[Install]\nWantedBy=multi-user.target\n",
+        service_name,
+        dir = server.remote_dir,
+        bin = REMOTE_BINARY_NAME,
+        port = server.listen_port,
+    )
+}
+
+fn local_accounts_store_json(app: &AppHandle) -> Result<String, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法获取应用数据目录: {error}"))?;
+    let path = account_store_path_from_data_dir(&data_dir);
+
+    if path.exists() {
+        return fs::read_to_string(&path)
+            .map_err(|error| format!("读取本地账号存储失败 {}: {error}", path.display()));
+    }
+
+    serde_json::to_string_pretty(&AccountsStore::default())
+        .map_err(|error| format!("序列化默认账号存储失败: {error}"))
+}
+
+fn ensure_ssh_tools_available_for(server: &RemoteServerConfig) -> Result<(), String> {
+    ensure_command_available("ssh", "未检测到 ssh 命令，请先安装 OpenSSH。")?;
+    ensure_command_available("scp", "未检测到 scp 命令，请先安装 OpenSSH。")?;
+    if matches!(server.auth_mode, RemoteAuthMode::Password) {
+        ensure_command_available("sshpass", "未检测到 sshpass 命令，请先安装 sshpass。")?;
+    }
+    Ok(())
+}
+
+fn ensure_command_available(command: &str, message: &str) -> Result<(), String> {
+    Command::new(command)
+        .arg("-V")
+        .output()
+        .map(|_| ())
+        .or_else(|_| Command::new(command).arg("--version").output().map(|_| ()))
+        .map_err(|_| message.to_string())
+}
+
+fn command_sshpass_available() -> bool {
+    command_exists("sshpass")
+}
+
+fn command_exists(command: &str) -> bool {
+    Command::new(command)
+        .arg("--version")
+        .output()
+        .is_ok()
+        || Command::new(command).arg("-V").output().is_ok()
+}
+
+fn cargo_subcommand_available(subcommand: &str) -> bool {
+    Command::new("cargo")
+        .arg(subcommand)
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn install_sshpass_sync() -> Result<(), String> {
+    if command_sshpass_available() {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        ensure_command_available(
+            "brew",
+            "未检测到 Homebrew，请先安装 brew 后再自动安装 sshpass。",
+        )?;
+        run_install_command(
+            "brew",
+            &["install", "sshpass"],
+            "通过 Homebrew 安装 sshpass 失败",
+        )?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return Err("当前平台暂未内置一键安装 sshpass，请先手动安装。".to_string());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if command_exists("apt-get") {
+            run_shell_install_command(
+                "sudo apt-get update && sudo apt-get install -y sshpass",
+                "通过 apt-get 安装 sshpass 失败",
+            )?;
+        } else if command_exists("dnf") {
+            run_shell_install_command("sudo dnf install -y sshpass", "通过 dnf 安装 sshpass 失败")?;
+        } else if command_exists("yum") {
+            run_shell_install_command("sudo yum install -y sshpass", "通过 yum 安装 sshpass 失败")?;
+        } else if command_exists("pacman") {
+            run_shell_install_command(
+                "sudo pacman -Sy --noconfirm sshpass",
+                "通过 pacman 安装 sshpass 失败",
+            )?;
+        } else {
+            return Err("当前平台暂未内置一键安装 sshpass，请先手动安装。".to_string());
+        }
+    }
+
+    if !command_sshpass_available() {
+        return Err("自动安装 sshpass 后仍未检测到可执行文件。".to_string());
+    }
+
+    Ok(())
+}
+
+fn ensure_linux_build_dependencies_available() -> Result<(), String> {
+    if command_exists("cross") || (cargo_subcommand_available("zigbuild") && command_exists("zig")) {
+        return Ok(());
+    }
+
+    install_linux_build_dependencies_sync()?;
+
+    if command_exists("cross") || (cargo_subcommand_available("zigbuild") && command_exists("zig")) {
+        return Ok(());
+    }
+
+    Err("自动安装 Linux 构建依赖后仍未检测到可用的 cargo-zigbuild / zig。".to_string())
+}
+
+fn install_linux_build_dependencies_sync() -> Result<(), String> {
+    if !command_exists("zig") {
+        install_zig_sync()?;
+    }
+
+    if !cargo_subcommand_available("zigbuild") {
+        run_install_command(
+            "cargo",
+            &["install", "cargo-zigbuild", "--locked"],
+            "通过 cargo install 安装 cargo-zigbuild 失败",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn install_zig_sync() -> Result<(), String> {
+    if command_exists("zig") {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        ensure_command_available(
+            "brew",
+            "未检测到 Homebrew，请先安装 brew 后再自动安装 Zig。",
+        )?;
+        run_install_command("brew", &["install", "zig"], "通过 Homebrew 安装 Zig 失败")?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        ensure_command_available(
+            "winget",
+            "当前平台暂未内置一键安装 cargo-zigbuild / Zig，请先手动安装。",
+        )?;
+        run_install_command(
+            "winget",
+            &["install", "--id", "zig.zig", "-e", "--silent"],
+            "通过 winget 安装 Zig 失败",
+        )?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if command_exists("apt-get") {
+            run_shell_install_command(
+                "sudo apt-get update && sudo apt-get install -y zig",
+                "通过 apt-get 安装 Zig 失败",
+            )?;
+        } else if command_exists("dnf") {
+            run_shell_install_command("sudo dnf install -y zig", "通过 dnf 安装 Zig 失败")?;
+        } else if command_exists("yum") {
+            run_shell_install_command("sudo yum install -y zig", "通过 yum 安装 Zig 失败")?;
+        } else if command_exists("pacman") {
+            run_shell_install_command(
+                "sudo pacman -Sy --noconfirm zig",
+                "通过 pacman 安装 Zig 失败",
+            )?;
+        } else {
+            return Err("当前平台暂未内置一键安装 cargo-zigbuild / Zig，请先手动安装。".to_string());
+        }
+    }
+
+    if !command_exists("zig") {
+        return Err("自动安装 Linux 构建依赖后仍未检测到可用的 cargo-zigbuild / zig。".to_string());
+    }
+
+    Ok(())
+}
+
+fn ensure_rust_target(target: &str) -> Result<(), String> {
+    if !command_exists("rustup") {
+        return Ok(());
+    }
+
+    let status = Command::new("rustup")
+        .args(["target", "add", target])
+        .status()
+        .map_err(|error| format!("添加 Rust 目标失败: {error}"))?;
+    if !status.success() {
+        return Err(format!("添加 Rust 目标失败: {target}"));
+    }
+    Ok(())
+}
+
+fn run_local_command(command: &mut Command) -> Result<(), String> {
+    let description = format!("{command:?}");
+    let output = command
+        .output()
+        .map_err(|error| format!("执行本地命令失败 {description}: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = summarize_command_output(&output.stderr);
+    let stdout = summarize_command_output(&output.stdout);
+    let detail = if !stderr.is_empty() {
+        stderr
+    } else if !stdout.is_empty() {
+        stdout
+    } else {
+        "命令返回非零状态".to_string()
+    };
+    Err(detail)
+}
+
+fn run_install_command(cmd: &str, args: &[&str], prefix: &str) -> Result<(), String> {
+    let output = Command::new(cmd)
+        .args(args)
+        .output()
+        .map_err(|error| format!("{prefix}: {error}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = summarize_command_output(&output.stderr);
+    let stdout = summarize_command_output(&output.stdout);
+    if !stderr.is_empty() {
+        Err(format!("{prefix}: {stderr}"))
+    } else if !stdout.is_empty() {
+        Err(format!("{prefix}: {stdout}"))
+    } else {
+        Err(prefix.to_string())
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn run_shell_install_command(script: &str, prefix: &str) -> Result<(), String> {
+    let output = Command::new("sh")
+        .arg("-lc")
+        .arg(script)
+        .output()
+        .map_err(|error| format!("{prefix}: {error}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = summarize_command_output(&output.stderr);
+    let stdout = summarize_command_output(&output.stdout);
+    if !stderr.is_empty() {
+        Err(format!("{prefix}: {stderr}"))
+    } else if !stdout.is_empty() {
+        Err(format!("{prefix}: {stdout}"))
+    } else {
+        Err(prefix.to_string())
+    }
+}
+
+fn summarize_command_output(output: &[u8]) -> String {
+    let normalized = String::from_utf8_lossy(output).replace('\r', "\n");
+    let mut lines = normalized
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+
+    if lines.len() > 8 {
+        lines = lines.split_off(lines.len() - 8);
+    }
+
+    let mut summary = lines.join(" | ");
+    if summary.len() > 600 {
+        summary.truncate(600);
+        summary.push_str("...");
+    }
+
+    summary
+}
+
+fn run_root_ssh(server: &RemoteServerConfig, script: &str) -> Result<String, String> {
+    if server.ssh_user == "root" {
+        return run_ssh(server, script);
+    }
+
+    match server.auth_mode {
+        RemoteAuthMode::Password => {
+            let password = server
+                .password
+                .as_deref()
+                .ok_or_else(|| "SSH 密码不能为空".to_string())?;
+            run_ssh(
+                server,
+                &format!(
+                    "printf '%s\\n' {password} | sudo -S -p '' sh -lc {script}",
+                    password = shell_quote(password),
+                    script = shell_quote(script),
+                ),
+            )
+        }
+        _ => run_ssh(server, &format!("sudo -n sh -lc {}", shell_quote(script))),
+    }
+}
+
+fn run_ssh(server: &RemoteServerConfig, script: &str) -> Result<String, String> {
+    let auth = PreparedAuth::new(server)?;
+    let mut command = auth.new_command("ssh");
+    append_ssh_common_args(&mut command, server, false, auth.identity_file_path());
+    command.arg(remote_target(server)).arg("sh").arg("-lc").arg(script);
+
+    let output = command
+        .output()
+        .map_err(|error| format!("执行 ssh 命令失败: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if !stderr.is_empty() {
+            format!("ssh 命令返回非零状态: {stderr}")
+        } else if !stdout.is_empty() {
+            format!("ssh 命令返回非零状态: {stdout}")
+        } else {
+            "ssh 命令返回非零状态".to_string()
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn run_scp(server: &RemoteServerConfig, local_path: &Path, remote_path: &str) -> Result<(), String> {
+    let auth = PreparedAuth::new(server)?;
+    let mut command = auth.new_command("scp");
+    append_ssh_common_args(&mut command, server, true, auth.identity_file_path());
+    command.arg(local_path);
+    command.arg(format!("{}:{}", remote_target(server), remote_path));
+
+    let output = command
+        .output()
+        .map_err(|error| format!("执行 scp 命令失败: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if !stderr.is_empty() {
+            format!("scp 命令返回非零状态: {stderr}")
+        } else if !stdout.is_empty() {
+            format!("scp 命令返回非零状态: {stdout}")
+        } else {
+            "scp 命令返回非零状态".to_string()
+        });
+    }
+    Ok(())
+}
+
+fn append_ssh_common_args(
+    command: &mut Command,
+    server: &RemoteServerConfig,
+    scp_mode: bool,
+    identity_path: Option<&Path>,
+) {
+    if scp_mode {
+        command.arg("-P").arg(server.ssh_port.to_string());
+    } else {
+        command.arg("-p").arg(server.ssh_port.to_string());
+    }
+    command.arg("-o").arg("StrictHostKeyChecking=accept-new");
+    match server.auth_mode {
+        RemoteAuthMode::Password => {
+            command.arg("-o").arg("BatchMode=no");
+            command.arg("-o").arg("PreferredAuthentications=password");
+            command.arg("-o").arg("PubkeyAuthentication=no");
+        }
+        _ => {
+            command.arg("-o").arg("BatchMode=yes");
+            if let Some(path) = identity_path {
+                command.arg("-i").arg(path);
+            }
+        }
+    }
+}
+
+fn remote_target(server: &RemoteServerConfig) -> String {
+    format!("{}@{}", server.ssh_user, server.host)
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn remote_systemd_service_name(server: &RemoteServerConfig) -> String {
+    let raw = if server.id.trim().is_empty() {
+        server.label.as_str()
+    } else {
+        server.id.as_str()
+    };
+    format!("codex-tools-proxyd-{}.service", sanitize_service_fragment(raw))
+}
+
+fn sanitize_service_fragment(value: &str) -> String {
+    let mut slug = value
+        .chars()
+        .map(|char| {
+            if char.is_ascii_alphanumeric() {
+                char.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    while slug.contains("--") {
+        slug = slug.replace("--", "-");
+    }
+    slug = slug.trim_matches('-').to_string();
+    if slug.is_empty() {
+        slug = "node".to_string();
+    }
+    if slug.len() > 24 {
+        slug.truncate(24);
+    }
+    slug
+}
+
+struct RemotePlatform {
+    primary_target: &'static str,
+    fallback_target: &'static str,
+}
+
+struct PreparedAuth {
+    temp_identity_file: Option<PathBuf>,
+    password: Option<String>,
+}
+
+impl PreparedAuth {
+    fn new(server: &RemoteServerConfig) -> Result<Self, String> {
+        match server.auth_mode {
+            RemoteAuthMode::KeyContent => {
+                let private_key = server
+                    .private_key
+                    .as_deref()
+                    .ok_or_else(|| "SSH 私钥内容不能为空".to_string())?;
+                let temp_path = env::temp_dir().join(format!(
+                    "codex-tools-key-{}-{}.pem",
+                    sanitize_service_fragment(&server.id),
+                    now_unix_seconds()
+                ));
+                fs::write(&temp_path, private_key)
+                    .map_err(|error| format!("写入临时 SSH 私钥文件失败 {}: {error}", temp_path.display()))?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mut perms = fs::metadata(&temp_path)
+                        .map_err(|error| format!("读取临时 SSH 私钥文件权限失败: {error}"))?
+                        .permissions();
+                    perms.set_mode(0o600);
+                    fs::set_permissions(&temp_path, perms)
+                        .map_err(|error| format!("设置临时 SSH 私钥文件权限失败: {error}"))?;
+                }
+                Ok(Self {
+                    temp_identity_file: Some(temp_path),
+                    password: None,
+                })
+            }
+            RemoteAuthMode::KeyFile | RemoteAuthMode::KeyPath => Ok(Self {
+                temp_identity_file: server.identity_file.as_ref().map(PathBuf::from),
+                password: None,
+            }),
+            RemoteAuthMode::Password => Ok(Self {
+                temp_identity_file: None,
+                password: server.password.clone(),
+            }),
+        }
+    }
+
+    fn identity_file_path(&self) -> Option<&Path> {
+        self.temp_identity_file.as_deref()
+    }
+
+    fn new_command(&self, program: &str) -> Command {
+        if let Some(password) = self.password.as_deref() {
+            let mut command = Command::new("sshpass");
+            command.arg("-p").arg(password).arg(program);
+            command
+        } else {
+            Command::new(program)
+        }
+    }
+}
+
+impl Drop for PreparedAuth {
+    fn drop(&mut self) {
+        if let Some(path) = self.temp_identity_file.as_ref() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}

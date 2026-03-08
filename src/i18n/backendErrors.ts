@@ -1140,6 +1140,526 @@ const REPLACEMENTS: PhraseReplacement[] = [
       "Не удалось разобрать payload id_token"
     ),
   },
+  {
+    source: "远程服务器名称不能为空",
+    target: phrases(
+      "远程服务器名称不能为空",
+      "Remote server name cannot be empty",
+      "リモートサーバー名を空にすることはできません",
+      "원격 서버 이름은 비워 둘 수 없습니다",
+      "Имя удаленного сервера не может быть пустым"
+    ),
+  },
+  {
+    source: "远程服务器 Host 不能为空",
+    target: phrases(
+      "远程服务器 Host 不能为空",
+      "Remote server host cannot be empty",
+      "リモートサーバーの Host を空にすることはできません",
+      "원격 서버 Host 는 비워 둘 수 없습니다",
+      "Host удаленного сервера не может быть пустым"
+    ),
+  },
+  {
+    source: "远程服务器 SSH 用户不能为空",
+    target: phrases(
+      "远程服务器 SSH 用户不能为空",
+      "Remote server SSH user cannot be empty",
+      "リモートサーバーの SSH ユーザーを空にすることはできません",
+      "원격 서버 SSH 사용자는 비워 둘 수 없습니다",
+      "SSH-пользователь удаленного сервера не может быть пустым"
+    ),
+  },
+  {
+    source: "远程服务器部署目录不能为空",
+    target: phrases(
+      "远程服务器部署目录不能为空",
+      "Remote server deploy directory cannot be empty",
+      "リモートサーバーの配置ディレクトリを空にすることはできません",
+      "원격 서버 배포 디렉터리는 비워 둘 수 없습니다",
+      "Каталог развертывания удаленного сервера не может быть пустым"
+    ),
+  },
+  {
+    source: "远程服务器 SSH 端口无效",
+    target: phrases(
+      "远程服务器 SSH 端口无效",
+      "Remote server SSH port is invalid",
+      "リモートサーバーの SSH ポートが無効です",
+      "원격 서버 SSH 포트가 올바르지 않습니다",
+      "Неверный SSH-порт удаленного сервера"
+    ),
+  },
+  {
+    source: "远程服务器代理端口无效",
+    target: phrases(
+      "远程服务器代理端口无效",
+      "Remote server proxy port is invalid",
+      "リモートサーバーのプロキシポートが無効です",
+      "원격 서버 프록시 포트가 올바르지 않습니다",
+      "Неверный порт прокси удаленного сервера"
+    ),
+  },
+  {
+    source: "未检测到 ssh 命令，请先安装 OpenSSH。",
+    target: phrases(
+      "未检测到 ssh 命令，请先安装 OpenSSH。",
+      "The ssh command was not found. Install OpenSSH first.",
+      "ssh コマンドが見つかりません。先に OpenSSH をインストールしてください。",
+      "ssh 명령을 찾을 수 없습니다. 먼저 OpenSSH 를 설치하세요.",
+      "Команда ssh не найдена. Сначала установите OpenSSH."
+    ),
+  },
+  {
+    source: "未检测到 scp 命令，请先安装 OpenSSH。",
+    target: phrases(
+      "未检测到 scp 命令，请先安装 OpenSSH。",
+      "The scp command was not found. Install OpenSSH first.",
+      "scp コマンドが見つかりません。先に OpenSSH をインストールしてください。",
+      "scp 명령을 찾을 수 없습니다. 먼저 OpenSSH 를 설치하세요.",
+      "Команда scp не найдена. Сначала установите OpenSSH."
+    ),
+  },
+  {
+    source: "解析远程代理二进制失败",
+    target: phrases(
+      "解析远程代理二进制失败",
+      "Failed to decode remote proxy binary",
+      "リモートプロキシバイナリの解析に失敗しました",
+      "원격 프록시 바이너리를 해석하지 못했습니다",
+      "Не удалось декодировать бинарник удаленного прокси"
+    ),
+  },
+  {
+    source: "创建远程部署临时目录失败",
+    target: phrases(
+      "创建远程部署临时目录失败",
+      "Failed to create temporary directory for remote deployment",
+      "リモート配置用の一時ディレクトリ作成に失敗しました",
+      "원격 배포용 임시 디렉터리를 만들지 못했습니다",
+      "Не удалось создать временный каталог для удаленного развертывания"
+    ),
+  },
+  {
+    source: "写入远程代理二进制临时文件失败",
+    target: phrases(
+      "写入远程代理二进制临时文件失败",
+      "Failed to write temporary remote proxy binary file",
+      "リモートプロキシバイナリの一時ファイル書き込みに失敗しました",
+      "원격 프록시 바이너리 임시 파일을 쓰지 못했습니다",
+      "Не удалось записать временный файл бинарника удаленного прокси"
+    ),
+  },
+  {
+    source: "写入远程账号存储临时文件失败",
+    target: phrases(
+      "写入远程账号存储临时文件失败",
+      "Failed to write temporary remote account store file",
+      "リモートアカウント保存用の一時ファイル書き込みに失敗しました",
+      "원격 계정 저장소 임시 파일을 쓰지 못했습니다",
+      "Не удалось записать временный файл удаленного хранилища аккаунтов"
+    ),
+  },
+  {
+    source: "读取本地账号存储失败",
+    target: phrases(
+      "读取本地账号存储失败",
+      "Failed to read local account store",
+      "ローカルのアカウント保存内容の読み取りに失敗しました",
+      "로컬 계정 저장소를 읽지 못했습니다",
+      "Не удалось прочитать локальное хранилище аккаунтов"
+    ),
+  },
+  {
+    source: "序列化默认账号存储失败",
+    target: phrases(
+      "序列化默认账号存储失败",
+      "Failed to serialize default account store",
+      "既定のアカウント保存内容のシリアライズに失敗しました",
+      "기본 계정 저장소를 직렬화하지 못했습니다",
+      "Не удалось сериализовать хранилище аккаунтов по умолчанию"
+    ),
+  },
+  {
+    source: "执行 ssh 命令失败",
+    target: phrases(
+      "执行 ssh 命令失败",
+      "Failed to execute ssh command",
+      "ssh コマンドの実行に失敗しました",
+      "ssh 명령을 실행하지 못했습니다",
+      "Не удалось выполнить команду ssh"
+    ),
+  },
+  {
+    source: "ssh 命令返回非零状态",
+    target: phrases(
+      "ssh 命令返回非零状态",
+      "ssh command returned a non-zero status",
+      "ssh コマンドが非ゼロステータスを返しました",
+      "ssh 명령이 0이 아닌 상태를 반환했습니다",
+      "Команда ssh завершилась с ненулевым статусом"
+    ),
+  },
+  {
+    source: "执行 scp 命令失败",
+    target: phrases(
+      "执行 scp 命令失败",
+      "Failed to execute scp command",
+      "scp コマンドの実行に失敗しました",
+      "scp 명령을 실행하지 못했습니다",
+      "Не удалось выполнить команду scp"
+    ),
+  },
+  {
+    source: "scp 命令返回非零状态",
+    target: phrases(
+      "scp 命令返回非零状态",
+      "scp command returned a non-zero status",
+      "scp コマンドが非ゼロステータスを返しました",
+      "scp 명령이 0이 아닌 상태를 반환했습니다",
+      "Команда scp завершилась с ненулевым статусом"
+    ),
+  },
+  {
+    source: "查询远程代理状态失败",
+    target: phrases(
+      "查询远程代理状态失败",
+      "Failed to query remote proxy status",
+      "リモートプロキシ状態の取得に失敗しました",
+      "원격 프록시 상태 조회에 실패했습니다",
+      "Не удалось получить статус удаленного прокси"
+    ),
+  },
+  {
+    source: "部署远程代理失败",
+    target: phrases(
+      "部署远程代理失败",
+      "Failed to deploy remote proxy",
+      "リモートプロキシの配置に失敗しました",
+      "원격 프록시 배포에 실패했습니다",
+      "Не удалось развернуть удаленный прокси"
+    ),
+  },
+  {
+    source: "启动远程代理失败",
+    target: phrases(
+      "启动远程代理失败",
+      "Failed to start remote proxy",
+      "リモートプロキシの起動に失敗しました",
+      "원격 프록시 시작에 실패했습니다",
+      "Не удалось запустить удаленный прокси"
+    ),
+  },
+  {
+    source: "停止远程代理失败",
+    target: phrases(
+      "停止远程代理失败",
+      "Failed to stop remote proxy",
+      "リモートプロキシの停止に失敗しました",
+      "원격 프록시 중지에 실패했습니다",
+      "Не удалось остановить удаленный прокси"
+    ),
+  },
+  {
+    source: "SSH 私钥内容不能为空",
+    target: phrases(
+      "SSH 私钥内容不能为空",
+      "SSH private key content cannot be empty",
+      "SSH 秘密鍵の内容を空にすることはできません",
+      "SSH 개인 키 내용은 비워 둘 수 없습니다",
+      "Содержимое SSH приватного ключа не может быть пустым"
+    ),
+  },
+  {
+    source: "SSH 私钥路径不能为空",
+    target: phrases(
+      "SSH 私钥路径不能为空",
+      "SSH private key path cannot be empty",
+      "SSH 秘密鍵パスを空にすることはできません",
+      "SSH 개인 키 경로는 비워 둘 수 없습니다",
+      "Путь к SSH приватному ключу не может быть пустым"
+    ),
+  },
+  {
+    source: "SSH 密码不能为空",
+    target: phrases(
+      "SSH 密码不能为空",
+      "SSH password cannot be empty",
+      "SSH パスワードを空にすることはできません",
+      "SSH 비밀번호는 비워 둘 수 없습니다",
+      "SSH пароль не может быть пустым"
+    ),
+  },
+  {
+    source: "未检测到 sshpass 命令，请先安装 sshpass。",
+    target: phrases(
+      "未检测到 sshpass 命令，请先安装 sshpass。",
+      "The sshpass command was not found. Install sshpass first.",
+      "sshpass コマンドが見つかりません。先に sshpass をインストールしてください。",
+      "sshpass 명령을 찾을 수 없습니다. 먼저 sshpass 를 설치하세요.",
+      "Команда sshpass не найдена. Сначала установите sshpass."
+    ),
+  },
+  {
+    source: "未检测到 Homebrew，请先安装 brew 后再自动安装 sshpass。",
+    target: phrases(
+      "未检测到 Homebrew，请先安装 brew 后再自动安装 sshpass。",
+      "Homebrew was not found. Install brew first, then try automatic sshpass installation again.",
+      "Homebrew が見つかりません。先に brew をインストールしてから、sshpass の自動インストールを再試行してください。",
+      "Homebrew 를 찾을 수 없습니다. 먼저 brew 를 설치한 뒤 sshpass 자동 설치를 다시 시도하세요.",
+      "Homebrew не найден. Сначала установите brew, затем повторите автоматическую установку sshpass."
+    ),
+  },
+  {
+    source: "通过 Homebrew 安装 sshpass 失败",
+    target: phrases(
+      "通过 Homebrew 安装 sshpass 失败",
+      "Failed to install sshpass via Homebrew",
+      "Homebrew 経由での sshpass インストールに失敗しました",
+      "Homebrew 로 sshpass 를 설치하지 못했습니다",
+      "Не удалось установить sshpass через Homebrew"
+    ),
+  },
+  {
+    source: "当前平台暂未内置一键安装 sshpass，请先手动安装。",
+    target: phrases(
+      "当前平台暂未内置一键安装 sshpass，请先手动安装。",
+      "One-click sshpass installation is not built in on this platform yet. Install it manually first.",
+      "このプラットフォームでは sshpass のワンクリックインストールにまだ対応していません。先に手動でインストールしてください。",
+      "현재 플랫폼에서는 sshpass 원클릭 설치를 아직 지원하지 않습니다. 먼저 수동 설치하세요.",
+      "Для этой платформы пока нет встроенной установки sshpass в один клик. Сначала установите его вручную."
+    ),
+  },
+  {
+    source: "自动安装 sshpass 后仍未检测到可执行文件。",
+    target: phrases(
+      "自动安装 sshpass 后仍未检测到可执行文件。",
+      "sshpass is still not available after automatic installation.",
+      "sshpass を自動インストールした後も実行ファイルが見つかりません。",
+      "sshpass 를 자동 설치한 뒤에도 실행 파일을 찾을 수 없습니다.",
+      "После автоматической установки исполняемый файл sshpass по-прежнему не найден."
+    ),
+  },
+  {
+    source: "未检测到 cargo 命令，请先安装 Rust 工具链。",
+    target: phrases(
+      "未检测到 cargo 命令，请先安装 Rust 工具链。",
+      "The cargo command was not found. Install the Rust toolchain first.",
+      "cargo コマンドが見つかりません。先に Rust ツールチェーンをインストールしてください。",
+      "cargo 명령을 찾을 수 없습니다. 먼저 Rust 도구 모음을 설치하세요.",
+      "Команда cargo не найдена. Сначала установите toolchain Rust."
+    ),
+  },
+  {
+    source: "写入远程 systemd 服务文件失败",
+    target: phrases(
+      "写入远程 systemd 服务文件失败",
+      "Failed to write temporary remote systemd service file",
+      "リモート systemd サービスファイルの一時書き込みに失敗しました",
+      "원격 systemd 서비스 임시 파일을 쓰지 못했습니다",
+      "Не удалось записать временный systemd unit для удаленного сервера"
+    ),
+  },
+  {
+    source: "读取远程代理日志失败",
+    target: phrases(
+      "读取远程代理日志失败",
+      "Failed to read remote proxy logs",
+      "リモートプロキシログの読み取りに失敗しました",
+      "원격 프록시 로그를 읽지 못했습니다",
+      "Не удалось прочитать логи удаленного прокси"
+    ),
+  },
+  {
+    source: "打开本地文件选择器失败",
+    target: phrases(
+      "打开本地文件选择器失败",
+      "Failed to open local file picker",
+      "ローカルファイル選択ダイアログを開けませんでした",
+      "로컬 파일 선택기를 열지 못했습니다",
+      "Не удалось открыть локальный выбор файла"
+    ),
+  },
+  {
+    source: "自动构建 Linux 二进制失败",
+    target: phrases(
+      "自动构建 Linux 二进制失败",
+      "Failed to build the Linux binary automatically",
+      "Linux バイナリの自動ビルドに失敗しました",
+      "Linux 바이너리 자동 빌드에 실패했습니다",
+      "Не удалось автоматически собрать Linux-бинарник"
+    ),
+  },
+  {
+    source: "请先安装 cross 或 cargo-zigbuild，或补齐本机交叉编译工具链。",
+    target: phrases(
+      "请先安装 cross 或 cargo-zigbuild，或补齐本机交叉编译工具链。",
+      "Install cross or cargo-zigbuild first, or complete the local cross-compilation toolchain.",
+      "先に cross または cargo-zigbuild をインストールするか、ローカルのクロスコンパイルツールチェーンを整えてください。",
+      "먼저 cross 또는 cargo-zigbuild 를 설치하거나 로컬 교차 컴파일 도구 모음을 준비하세요.",
+      "Сначала установите cross или cargo-zigbuild либо настройте локальный toolchain для кросс-компиляции."
+    ),
+  },
+  {
+    source: "已尝试自动补齐本机 Linux 构建依赖，但仍未完成交叉编译。",
+    target: phrases(
+      "已尝试自动补齐本机 Linux 构建依赖，但仍未完成交叉编译。",
+      "Tried to install the local Linux build dependencies automatically, but cross-compilation is still not ready.",
+      "ローカルの Linux ビルド依存関係を自動補完しましたが、クロスコンパイル環境はまだ整っていません。",
+      "로컬 Linux 빌드 의존성을 자동으로 보완했지만 교차 컴파일 환경이 아직 준비되지 않았습니다.",
+      "Система попыталась автоматически установить локальные зависимости для сборки Linux, но кросс-компиляция по-прежнему не готова."
+    ),
+  },
+  {
+    source: "通过 cargo install 安装 cargo-zigbuild 失败",
+    target: phrases(
+      "通过 cargo install 安装 cargo-zigbuild 失败",
+      "Failed to install cargo-zigbuild via cargo install",
+      "cargo install による cargo-zigbuild のインストールに失敗しました",
+      "cargo install 로 cargo-zigbuild 를 설치하지 못했습니다",
+      "Не удалось установить cargo-zigbuild через cargo install"
+    ),
+  },
+  {
+    source: "未检测到 Homebrew，请先安装 brew 后再自动安装 Zig。",
+    target: phrases(
+      "未检测到 Homebrew，请先安装 brew 后再自动安装 Zig。",
+      "Homebrew was not found. Install brew first before automatically installing Zig.",
+      "Homebrew が見つかりません。Zig を自動インストールする前に brew をインストールしてください。",
+      "Homebrew 를 찾지 못했습니다. Zig 를 자동 설치하기 전에 먼저 brew 를 설치하세요.",
+      "Homebrew не найден. Сначала установите brew, а затем попробуйте автоматически установить Zig."
+    ),
+  },
+  {
+    source: "通过 Homebrew 安装 Zig 失败",
+    target: phrases(
+      "通过 Homebrew 安装 Zig 失败",
+      "Failed to install Zig via Homebrew",
+      "Homebrew による Zig のインストールに失敗しました",
+      "Homebrew 로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через Homebrew"
+    ),
+  },
+  {
+    source: "通过 winget 安装 Zig 失败",
+    target: phrases(
+      "通过 winget 安装 Zig 失败",
+      "Failed to install Zig via winget",
+      "winget による Zig のインストールに失敗しました",
+      "winget 으로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через winget"
+    ),
+  },
+  {
+    source: "通过 apt-get 安装 Zig 失败",
+    target: phrases(
+      "通过 apt-get 安装 Zig 失败",
+      "Failed to install Zig via apt-get",
+      "apt-get による Zig のインストールに失敗しました",
+      "apt-get 으로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через apt-get"
+    ),
+  },
+  {
+    source: "通过 dnf 安装 Zig 失败",
+    target: phrases(
+      "通过 dnf 安装 Zig 失败",
+      "Failed to install Zig via dnf",
+      "dnf による Zig のインストールに失敗しました",
+      "dnf 로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через dnf"
+    ),
+  },
+  {
+    source: "通过 yum 安装 Zig 失败",
+    target: phrases(
+      "通过 yum 安装 Zig 失败",
+      "Failed to install Zig via yum",
+      "yum による Zig のインストールに失敗しました",
+      "yum 으로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через yum"
+    ),
+  },
+  {
+    source: "通过 pacman 安装 Zig 失败",
+    target: phrases(
+      "通过 pacman 安装 Zig 失败",
+      "Failed to install Zig via pacman",
+      "pacman による Zig のインストールに失敗しました",
+      "pacman 으로 Zig 를 설치하지 못했습니다",
+      "Не удалось установить Zig через pacman"
+    ),
+  },
+  {
+    source: "当前平台暂未内置一键安装 cargo-zigbuild / Zig，请先手动安装。",
+    target: phrases(
+      "当前平台暂未内置一键安装 cargo-zigbuild / Zig，请先手动安装。",
+      "One-click installation for cargo-zigbuild / Zig is not built in on this platform yet. Please install them manually first.",
+      "このプラットフォームでは cargo-zigbuild / Zig のワンクリックインストールはまだ組み込まれていません。先に手動でインストールしてください。",
+      "현재 플랫폼에는 cargo-zigbuild / Zig 원클릭 설치가 아직 내장되어 있지 않습니다. 먼저 수동으로 설치하세요.",
+      "На этой платформе пока нет встроенной установки cargo-zigbuild / Zig в один клик. Сначала установите их вручную."
+    ),
+  },
+  {
+    source: "自动安装 Linux 构建依赖后仍未检测到可用的 cargo-zigbuild / zig。",
+    target: phrases(
+      "自动安装 Linux 构建依赖后仍未检测到可用的 cargo-zigbuild / zig。",
+      "cargo-zigbuild / zig is still not available after automatically installing the Linux build dependencies.",
+      "Linux ビルド依存関係を自動インストールした後も、使用可能な cargo-zigbuild / zig が見つかりません。",
+      "Linux 빌드 의존성을 자동 설치한 뒤에도 사용 가능한 cargo-zigbuild / zig 를 찾지 못했습니다.",
+      "После автоматической установки зависимостей для сборки Linux доступные cargo-zigbuild / zig по-прежнему не найдены."
+    ),
+  },
+  {
+    source: "添加 Rust 目标失败",
+    target: phrases(
+      "添加 Rust 目标失败",
+      "Failed to add Rust target",
+      "Rust ターゲットの追加に失敗しました",
+      "Rust 타깃 추가에 실패했습니다",
+      "Не удалось добавить Rust target"
+    ),
+  },
+  {
+    source: "执行本地命令失败",
+    target: phrases(
+      "执行本地命令失败",
+      "Failed to execute local command",
+      "ローカルコマンドの実行に失敗しました",
+      "로컬 명령을 실행하지 못했습니다",
+      "Не удалось выполнить локальную команду"
+    ),
+  },
+  {
+    source: "远程系统不是 Linux，当前检测到的是 ",
+    target: phrases(
+      "远程系统不是 Linux，当前检测到的是 ",
+      "The remote system is not Linux. Detected: ",
+      "リモートシステムは Linux ではありません。検出された OS: ",
+      "원격 시스템이 Linux 가 아닙니다. 감지된 OS: ",
+      "Удаленная система не Linux. Обнаружено: "
+    ),
+  },
+  {
+    source: "暂不支持的远程 Linux 架构: ",
+    target: phrases(
+      "暂不支持的远程 Linux 架构: ",
+      "Unsupported remote Linux architecture: ",
+      "未対応のリモート Linux アーキテクチャです: ",
+      "지원되지 않는 원격 Linux 아키텍처입니다: ",
+      "Неподдерживаемая архитектура удаленного Linux: "
+    ),
+  },
+  {
+    source: "详情: ",
+    target: phrases(
+      "详情: ",
+      "Details: ",
+      "詳細: ",
+      "세부 정보: ",
+      "Подробности: "
+    ),
+  },
 ];
 
 function normalizePunctuation(text: string, locale: AppLocale): string {

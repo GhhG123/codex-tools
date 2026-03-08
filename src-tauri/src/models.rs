@@ -151,6 +151,61 @@ pub(crate) struct ApiProxyStatus {
     pub(crate) last_error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum RemoteAuthMode {
+    KeyContent,
+    KeyFile,
+    KeyPath,
+    Password,
+}
+
+impl Default for RemoteAuthMode {
+    fn default() -> Self {
+        Self::KeyPath
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RemoteServerConfig {
+    pub(crate) id: String,
+    pub(crate) label: String,
+    pub(crate) host: String,
+    pub(crate) ssh_port: u16,
+    pub(crate) ssh_user: String,
+    #[serde(default)]
+    pub(crate) auth_mode: RemoteAuthMode,
+    #[serde(default)]
+    pub(crate) identity_file: Option<String>,
+    #[serde(default)]
+    pub(crate) private_key: Option<String>,
+    #[serde(default)]
+    pub(crate) password: Option<String>,
+    pub(crate) remote_dir: String,
+    pub(crate) listen_port: u16,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RemoteProxyStatus {
+    pub(crate) installed: bool,
+    pub(crate) service_installed: bool,
+    pub(crate) running: bool,
+    pub(crate) enabled: bool,
+    pub(crate) service_name: String,
+    pub(crate) pid: Option<u32>,
+    pub(crate) base_url: String,
+    pub(crate) api_key: Option<String>,
+    pub(crate) last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeployRemoteProxyInput {
+    pub(crate) server: RemoteServerConfig,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum CloudflaredTunnelMode {
@@ -242,6 +297,7 @@ pub(crate) struct AppSettings {
     pub(crate) restart_editors_on_switch: bool,
     pub(crate) restart_editor_targets: Vec<EditorAppId>,
     pub(crate) auto_start_api_proxy: bool,
+    pub(crate) remote_servers: Vec<RemoteServerConfig>,
     pub(crate) api_proxy_api_key: Option<String>,
     pub(crate) locale: AppLocale,
 }
@@ -256,6 +312,7 @@ impl Default for AppSettings {
             restart_editors_on_switch: false,
             restart_editor_targets: Vec::new(),
             auto_start_api_proxy: false,
+            remote_servers: Vec::new(),
             api_proxy_api_key: None,
             locale: AppLocale::default(),
         }
@@ -272,6 +329,7 @@ pub(crate) struct AppSettingsPatch {
     pub(crate) restart_editors_on_switch: Option<bool>,
     pub(crate) restart_editor_targets: Option<Vec<EditorAppId>>,
     pub(crate) auto_start_api_proxy: Option<bool>,
+    pub(crate) remote_servers: Option<Vec<RemoteServerConfig>>,
     pub(crate) locale: Option<AppLocale>,
 }
 
