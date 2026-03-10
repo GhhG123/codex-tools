@@ -36,11 +36,6 @@ export function SettingsPanel({
     id: item.code,
     label: item.nativeLabel,
   }));
-  const currentLocaleIndex = Math.max(
-    0,
-    localeOptions.findIndex((option) => option.code === locale),
-  );
-  const nextLocaleOption = languageOptions[(currentLocaleIndex + 1) % languageOptions.length];
 
   return (
     <section className="settingsPage" aria-label={copy.settings.title}>
@@ -54,7 +49,7 @@ export function SettingsPanel({
       <div className="settingRow">
         <div className="settingMeta">
           <strong>{languageLabel}</strong>
-          <p>{copy.topBar.toggleLanguage(nextLocaleOption.label)}</p>
+          <p>{copy.settings.languageSubtitle}</p>
         </div>
         <EditorMultiSelect
           options={languageOptions}
