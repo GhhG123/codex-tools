@@ -581,6 +581,16 @@ fn convert_openai_chat_request_to_codex(request: &Value) -> Result<(Value, bool)
         .as_object()
         .ok_or_else(|| "聊天请求必须是 JSON 对象".to_string())?;
 
+    // Cursor Agent may send Responses-style payloads to /v1/chat/completions.
+    if request_object
+        .get("messages")
+        .and_then(Value::as_array)
+        .is_none()
+        && request_object.contains_key("input")
+    {
+        return normalize_openai_responses_request(request.clone());
+    }
+
     let model = map_client_model_to_upstream(&required_string(request_object, "model")?)?;
     let messages = request_object
         .get("messages")
@@ -2591,6 +2601,31 @@ mod tests {
         assert_eq!(
             payload.get("model").and_then(|value| value.as_str()),
             Some("gpt-5.4")
+        );
+    }
+
+    #[test]
+    fn accepts_responses_style_input_on_chat_completions_route() {
+        let request = json!({
+            "model": "gpt-5-4",
+            "input": "hello"
+        });
+
+        let (payload, downstream_stream) =
+            convert_openai_chat_request_to_codex(&request).expect("payload should convert");
+
+        assert!(!downstream_stream);
+        assert_eq!(
+            payload.get("model").and_then(|value| value.as_str()),
+            Some("gpt-5.4")
+        );
+        assert_eq!(
+            payload.get("input").and_then(|value| value.as_str()),
+            Some("hello")
+        );
+        assert_eq!(
+            payload.get("stream").and_then(|value| value.as_bool()),
+            Some(true)
         );
     }
 
