@@ -1,6 +1,7 @@
 {
   "common": {
-    "close": "닫기"
+    "close": "닫기",
+    "clear": "지우기"
   },
   "topBar": {
     "appTitle": "Codex Tools",
@@ -260,6 +261,9 @@
       "description": "기본값은 켜짐. 끄면 계정만 전환하고 Codex는 실행하지 않습니다.",
       "checkedText": "실행",
       "uncheckedText": "전환만"
+    },
+    "codexLaunchPath": {
+      "label": "Codex 실행 경로 지정"
     },
     "syncOpencode": {
       "label": "Opencode OpenAI 인증 동기화",

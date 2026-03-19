@@ -1,6 +1,7 @@
 {
   "common": {
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "clear": "Очистить"
   },
   "topBar": {
     "appTitle": "Codex Tools",
@@ -260,6 +261,9 @@
       "description": "Включено по умолчанию. Если выключить, будет только переключение аккаунта.",
       "checkedText": "Запуск",
       "uncheckedText": "Только переключение"
+    },
+    "codexLaunchPath": {
+      "label": "Указать путь запуска Codex"
     },
     "syncOpencode": {
       "label": "Синхронизировать Opencode OpenAI auth",

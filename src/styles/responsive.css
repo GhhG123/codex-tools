@@ -97,6 +97,10 @@
     text-align: left;
   }
 
+  .settingPathValue {
+    text-align: left;
+  }
+
   .settingActionGroup {
     justify-content: flex-start;
   }

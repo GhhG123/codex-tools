@@ -21,6 +21,7 @@ use std::process::Stdio;
 use std::thread;
 use std::time::Duration;
 
+use rfd::FileDialog;
 use tauri::AppHandle;
 use tauri::Manager;
 use tauri::State;
@@ -213,7 +214,40 @@ fn get_current_auth_status() -> Result<CurrentAuthStatus, String> {
 }
 
 #[tauri::command]
-async fn launch_codex_login(state: State<'_, AppState>) -> Result<(), String> {
+async fn pick_codex_launch_path(
+    kind: String,
+    current_path: Option<String>,
+) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = FileDialog::new().set_title("选择 Codex 启动路径");
+
+        if let Some(current_path) = current_path {
+            let current_path = std::path::PathBuf::from(current_path);
+            let initial_dir = if current_path.is_dir() {
+                current_path
+            } else {
+                current_path
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or(current_path)
+            };
+            dialog = dialog.set_directory(initial_dir);
+        }
+
+        let selected = match kind.as_str() {
+            "file" => dialog.pick_file(),
+            "directory" => dialog.pick_folder(),
+            _ => return Err("不支持的路径选择类型".to_string()),
+        };
+
+        Ok(selected.map(|path| path.to_string_lossy().to_string()))
+    })
+    .await
+    .map_err(|error| format!("打开 Codex 路径选择器失败: {error}"))?
+}
+
+#[tauri::command]
+async fn launch_codex_login(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     // 添加账号流程前先备份当前 auth.json，确保授权结束后可回滚。
     let current_auth = auth::read_current_codex_auth_optional()?;
     {
@@ -221,7 +255,12 @@ async fn launch_codex_login(state: State<'_, AppState>) -> Result<(), String> {
         *backup = Some(current_auth);
     }
 
-    let mut cmd = cli::new_codex_command()?;
+    let configured_codex_launch_path = {
+        let _guard = state.store_lock.lock().await;
+        store::load_store(&app)?.settings.codex_launch_path
+    };
+
+    let mut cmd = cli::new_codex_command(configured_codex_launch_path.as_deref())?;
     cmd.arg("login")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -285,6 +324,7 @@ async fn switch_account_and_launch(
         restart_editors_on_switch.unwrap_or(store.settings.restart_editors_on_switch);
     let effective_restart_targets =
         restart_editor_targets.unwrap_or_else(|| store.settings.restart_editor_targets.clone());
+    let configured_codex_launch_path = store.settings.codex_launch_path.clone();
     auth::write_active_codex_auth(&account.auth_json)?;
     let _ = tray::refresh_macos_tray_snapshot(&app);
 
@@ -340,7 +380,9 @@ async fn switch_account_and_launch(
     // 切换时强制结束旧实例，避免触发“是否退出”确认弹窗。
     force_stop_running_codex();
 
-    if let Some(path) = cli::find_codex_app_path() {
+    if let Some(path) = cli::find_configured_codex_app_path(configured_codex_launch_path.as_deref())
+        .or_else(cli::find_codex_app_path)
+    {
         let mut cmd = Command::new("open");
         cmd.arg("-na").arg(&path);
         if let Some(workspace) = workspace_path.as_deref() {
@@ -366,7 +408,7 @@ async fn switch_account_and_launch(
         });
     }
 
-    let mut cmd = cli::new_codex_command()?;
+    let mut cmd = cli::new_codex_command(configured_codex_launch_path.as_deref())?;
     cmd.arg("app");
     if let Some(workspace) = workspace_path.as_deref() {
         cmd.arg(workspace);
@@ -620,6 +662,7 @@ pub fn run() {
             is_opencode_desktop_app_installed,
             open_external_url,
             get_current_auth_status,
+            pick_codex_launch_path,
             launch_codex_login,
             restore_auth_after_add_flow,
             switch_account_and_launch,

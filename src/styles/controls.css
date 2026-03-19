@@ -283,6 +283,28 @@
   gap: 8px;
 }
 
+.settingFieldGroup {
+  width: min(420px, 100%);
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.settingPathValue {
+  width: 100%;
+  color: var(--subtle);
+  font: 500 0.74rem/1.35 var(--font-mono);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.settingPathClearButton {
+  min-width: 38px;
+  padding: 0;
+  font: 700 1rem/1 var(--font-ui);
+}
+
 .settingLinkLabel {
   min-width: 0;
   white-space: nowrap;
@@ -635,4 +657,3 @@ button.danger {
 .importSmartSwitch {
   min-width: 132px;
 }
-

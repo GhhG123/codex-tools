@@ -1,6 +1,7 @@
 {
   "common": {
-    "close": "关闭"
+    "close": "关闭",
+    "clear": "清空"
   },
   "topBar": {
     "appTitle": "Codex Tools",
@@ -260,6 +261,9 @@
       "description": "默认开启。关闭时仅切换账号，不自动拉起 Codex。",
       "checkedText": "启动",
       "uncheckedText": "仅切换"
+    },
+    "codexLaunchPath": {
+      "label": "指定codex启动路径"
     },
     "syncOpencode": {
       "label": "同步 Opencode",

@@ -91,6 +91,16 @@ const REPLACEMENTS: PhraseReplacement[] = [
     ),
   },
   {
+    source: "设置的 Codex 启动路径无效。请填写 codex/codex.exe 的完整路径，或填写包含它的安装目录。",
+    target: phrases(
+      "设置的 Codex 启动路径无效。请填写 codex/codex.exe 的完整路径，或填写包含它的安装目录。",
+      "The configured Codex launch path is invalid. Enter the full path to codex/codex.exe, or an install directory that contains it.",
+      "設定した Codex 起動パスが無効です。codex/codex.exe のフルパス、またはそれを含むインストールディレクトリを入力してください。",
+      "설정한 Codex 실행 경로가 올바르지 않습니다. codex/codex.exe의 전체 경로나 해당 파일이 들어 있는 설치 디렉터리를 입력하세요.",
+      "Указанный путь запуска Codex недействителен. Введите полный путь к codex/codex.exe или каталог установки, где он находится."
+    ),
+  },
+  {
     source: "暂无可用于代理的账号，请先添加并授权账号。",
     target: phrases(
       "暂无可用于代理的账号，请先添加并授权账号。",

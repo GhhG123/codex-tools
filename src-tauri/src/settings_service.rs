@@ -1,6 +1,7 @@
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt as _;
 
+use crate::cli;
 use crate::models::AppSettings;
 use crate::models::AppSettingsPatch;
 use crate::state::AppState;
@@ -39,6 +40,11 @@ pub(crate) async fn update_app_settings_internal(
         }
         if let Some(value) = patch.launch_codex_after_switch {
             store.settings.launch_codex_after_switch = value;
+        }
+        if let Some(value) = patch.codex_launch_path {
+            let normalized = normalize_codex_launch_path(value);
+            cli::validate_configured_codex_path(normalized.as_deref())?;
+            store.settings.codex_launch_path = normalized;
         }
         if let Some(value) = patch.sync_opencode_openai_auth {
             store.settings.sync_opencode_openai_auth = value;
@@ -102,4 +108,26 @@ fn set_system_autostart(app: &AppHandle, enabled: bool) -> Result<(), String> {
             .disable()
             .map_err(|e| format!("关闭开机启动失败: {e}"))
     }
+}
+
+fn normalize_codex_launch_path(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        let unquoted = trimmed
+            .strip_prefix('"')
+            .and_then(|item| item.strip_suffix('"'))
+            .or_else(|| {
+                trimmed
+                    .strip_prefix('\'')
+                    .and_then(|item| item.strip_suffix('\''))
+            })
+            .unwrap_or(trimmed)
+            .trim();
+
+        if unquoted.is_empty() {
+            None
+        } else {
+            Some(unquoted.to_string())
+        }
+    })
 }

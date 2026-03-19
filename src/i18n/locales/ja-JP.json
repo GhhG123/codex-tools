@@ -1,6 +1,7 @@
 {
   "common": {
-    "close": "閉じる"
+    "close": "閉じる",
+    "clear": "クリア"
   },
   "topBar": {
     "appTitle": "Codex Tools",
@@ -260,6 +261,9 @@
       "description": "既定で有効。無効時はアカウント切替のみ行います。",
       "checkedText": "起動",
       "uncheckedText": "切替のみ"
+    },
+    "codexLaunchPath": {
+      "label": "Codex 起動パスを指定"
     },
     "syncOpencode": {
       "label": "Opencode OpenAI 認証を同期",

@@ -1,6 +1,7 @@
 {
   "common": {
-    "close": "Close"
+    "close": "Close",
+    "clear": "Clear"
   },
   "topBar": {
     "appTitle": "Codex Tools",
@@ -260,6 +261,9 @@
       "description": "Enabled by default. When disabled, only switch account without launching Codex.",
       "checkedText": "Launch",
       "uncheckedText": "Switch only"
+    },
+    "codexLaunchPath": {
+      "label": "Specify Codex launch path"
     },
     "syncOpencode": {
       "label": "Sync Opencode OpenAI auth",

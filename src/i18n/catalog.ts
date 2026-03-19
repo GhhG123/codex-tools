@@ -45,6 +45,7 @@ export function getNextLocale(current: AppLocale): AppLocale {
 export type MessageCatalog = {
   common: {
     close: string;
+    clear: string;
   };
   topBar: {
     appTitle: string;
@@ -280,6 +281,9 @@ export type MessageCatalog = {
       description: string;
       checkedText: string;
       uncheckedText: string;
+    };
+    codexLaunchPath: {
+      label: string;
     };
     syncOpencode: {
       label: string;

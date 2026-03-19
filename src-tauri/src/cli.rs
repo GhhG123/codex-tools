@@ -5,14 +5,25 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
+const INVALID_CONFIGURED_CODEX_PATH_MESSAGE: &str =
+    "设置的 Codex 启动路径无效。请填写 codex/codex.exe 的完整路径，或填写包含它的安装目录。";
+
 /// 构造可直接启动 Codex CLI 的命令。
 ///
 /// 重点处理 GUI 进程 PATH 不完整的问题：
 /// 先定位真实可执行路径，再把其父目录注入子进程 PATH。
-pub(crate) fn new_codex_command() -> Result<Command, String> {
-    let codex_path = find_codex_cli_path().ok_or_else(|| {
-        "未找到 codex 可执行文件。请先安装 Codex CLI，或将其所在目录加入系统 PATH。".to_string()
-    })?;
+pub(crate) fn new_codex_command(configured_path: Option<&str>) -> Result<Command, String> {
+    let normalized_configured_path = normalize_configured_path(configured_path);
+    let codex_path = find_configured_codex_cli_path(normalized_configured_path.as_deref())
+        .or_else(find_codex_cli_path)
+        .ok_or_else(|| {
+            if normalized_configured_path.is_some() {
+                INVALID_CONFIGURED_CODEX_PATH_MESSAGE.to_string()
+            } else {
+                "未找到 codex 可执行文件。请先安装 Codex CLI，或将其所在目录加入系统 PATH。"
+                    .to_string()
+            }
+        })?;
 
     let mut cmd = Command::new(&codex_path);
 
@@ -29,6 +40,29 @@ pub(crate) fn new_codex_command() -> Result<Command, String> {
     }
 
     Ok(cmd)
+}
+
+pub(crate) fn validate_configured_codex_path(configured_path: Option<&str>) -> Result<(), String> {
+    let normalized = normalize_configured_path(configured_path);
+    let Some(path) = normalized.as_deref() else {
+        return Ok(());
+    };
+
+    if find_configured_codex_cli_path(Some(path)).is_some() || is_macos_app_bundle(path) {
+        Ok(())
+    } else {
+        Err(INVALID_CONFIGURED_CODEX_PATH_MESSAGE.to_string())
+    }
+}
+
+pub(crate) fn find_configured_codex_app_path(configured_path: Option<&str>) -> Option<PathBuf> {
+    let normalized = normalize_configured_path(configured_path)?;
+
+    if is_macos_app_bundle(&normalized) {
+        return Some(normalized);
+    }
+
+    None
 }
 
 pub(crate) fn find_codex_app_path() -> Option<PathBuf> {
@@ -64,6 +98,24 @@ fn find_codex_cli_path() -> Option<PathBuf> {
     let mut candidates = codex_cli_candidates();
     append_nvm_codex_candidates(&mut candidates);
     append_macos_app_bundle_codex_candidates(&mut candidates);
+
+    let mut seen = HashSet::new();
+    for candidate in candidates {
+        if !seen.insert(candidate.clone()) {
+            continue;
+        }
+        if is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+fn find_configured_codex_cli_path(configured_path: Option<&Path>) -> Option<PathBuf> {
+    let configured_path = configured_path?;
+    let mut candidates = Vec::new();
+    append_configured_codex_candidates(&mut candidates, configured_path);
 
     let mut seen = HashSet::new();
     for candidate in candidates {
@@ -137,6 +189,35 @@ fn append_nvm_codex_candidates(candidates: &mut Vec<PathBuf>) {
     }
 }
 
+fn append_configured_codex_candidates(candidates: &mut Vec<PathBuf>, configured_path: &Path) {
+    if configured_path.is_file() {
+        candidates.push(configured_path.to_path_buf());
+        return;
+    }
+
+    let mut search_dirs = vec![configured_path.to_path_buf()];
+
+    if configured_path.is_dir() {
+        search_dirs.push(configured_path.join("bin"));
+        search_dirs.push(configured_path.join("resources"));
+        search_dirs.push(configured_path.join("resources").join("bin"));
+    }
+
+    #[cfg(target_os = "macos")]
+    if is_macos_app_bundle(configured_path) {
+        candidates.push(
+            configured_path
+                .join("Contents")
+                .join("Resources")
+                .join("codex"),
+        );
+    }
+
+    for dir in search_dirs {
+        push_codex_candidates_from_dir(candidates, &dir);
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn append_macos_app_bundle_codex_candidates(candidates: &mut Vec<PathBuf>) {
     let mut app_paths = vec![
@@ -160,6 +241,29 @@ fn append_macos_app_bundle_codex_candidates(candidates: &mut Vec<PathBuf>) {
 
 #[cfg(not(target_os = "macos"))]
 fn append_macos_app_bundle_codex_candidates(_candidates: &mut Vec<PathBuf>) {}
+
+fn normalize_configured_path(configured_path: Option<&str>) -> Option<PathBuf> {
+    let raw = configured_path?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let unquoted = raw
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .or_else(|| {
+            raw.strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .unwrap_or(raw)
+        .trim();
+
+    if unquoted.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(unquoted))
+    }
+}
 
 fn push_codex_candidates_from_dir(candidates: &mut Vec<PathBuf>, dir: &Path) {
     #[cfg(windows)]
@@ -188,6 +292,23 @@ fn is_executable_file(path: &Path) -> bool {
     #[cfg(not(unix))]
     {
         true
+    }
+}
+
+fn is_macos_app_bundle(path: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        path.is_dir()
+            && path
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.eq_ignore_ascii_case("app"))
+                .unwrap_or(false)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        false
     }
 }
 

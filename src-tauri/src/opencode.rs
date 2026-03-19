@@ -37,6 +37,12 @@ const OPENCODE_DESKTOP_WINDOWS_PROCESS_NAMES: &[&str] = &[
     "opencode.exe",
 ];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OpencodeAuthStorageFormat {
+    SharedAuthJson,
+    ProviderAuthFile,
+}
+
 /// 同步 opencode 的 OpenAI 认证（openai.access/openai.refresh）。
 ///
 /// 会自动探测：
@@ -107,10 +113,27 @@ pub(crate) fn restart_opencode_desktop_app() -> Result<(), String> {
 }
 
 fn sync_openai_auth_to_path(auth_path: &Path, tokens: &CodexOAuthTokens) -> Result<(), String> {
-    let mut root = read_or_init_json_object(auth_path)?;
+    let storage_format = detect_opencode_auth_storage_format(auth_path);
     let expires_ms = tokens
         .expires_at_ms
         .unwrap_or_else(|| now_unix_millis().saturating_add(FALLBACK_EXPIRES_IN_MS));
+
+    match storage_format {
+        OpencodeAuthStorageFormat::SharedAuthJson => {
+            sync_openai_auth_to_shared_store(auth_path, tokens, expires_ms)
+        }
+        OpencodeAuthStorageFormat::ProviderAuthFile => {
+            sync_openai_auth_to_provider_file(auth_path, tokens, expires_ms)
+        }
+    }
+}
+
+fn sync_openai_auth_to_shared_store(
+    auth_path: &Path,
+    tokens: &CodexOAuthTokens,
+    expires_ms: i64,
+) -> Result<(), String> {
+    let mut root = read_or_init_json_object(auth_path)?;
     let mut openai = root
         .get("openai")
         .and_then(Value::as_object)
@@ -144,6 +167,42 @@ fn sync_openai_auth_to_path(auth_path: &Path, tokens: &CodexOAuthTokens) -> Resu
     }
 
     root.insert("openai".to_string(), Value::Object(openai));
+    write_json_object(auth_path, &root)
+}
+
+fn sync_openai_auth_to_provider_file(
+    auth_path: &Path,
+    tokens: &CodexOAuthTokens,
+    expires_ms: i64,
+) -> Result<(), String> {
+    let mut root = read_or_init_json_object(auth_path)?;
+    root.remove("openai");
+
+    let auth_type = root
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("oauth")
+        .to_string();
+    root.insert("type".to_string(), Value::String(auth_type));
+    root.insert(
+        "access".to_string(),
+        Value::String(tokens.access_token.clone()),
+    );
+    root.insert(
+        "refresh".to_string(),
+        Value::String(tokens.refresh_token.clone()),
+    );
+    root.insert(
+        "expires".to_string(),
+        Value::Number(Number::from(expires_ms)),
+    );
+    if let Some(account_id) = tokens.account_id.as_ref() {
+        root.insert(
+            "accountId".to_string(),
+            Value::String(account_id.to_string()),
+        );
+    }
+
     write_json_object(auth_path, &root)
 }
 
@@ -249,6 +308,22 @@ fn detect_opencode_auth_paths() -> Vec<PathBuf> {
         return existing;
     }
 
+    let mut preferred = Vec::<PathBuf>::new();
+    if let Some(provider_auth_path) = candidates.iter().find(|path| {
+        detect_opencode_auth_storage_format(path) == OpencodeAuthStorageFormat::ProviderAuthFile
+    }) {
+        push_unique_path(&mut preferred, provider_auth_path.clone());
+    }
+    if let Some(shared_auth_path) = candidates.iter().find(|path| {
+        detect_opencode_auth_storage_format(path) == OpencodeAuthStorageFormat::SharedAuthJson
+    }) {
+        push_unique_path(&mut preferred, shared_auth_path.clone());
+    }
+
+    if !preferred.is_empty() {
+        return preferred;
+    }
+
     candidates
         .into_iter()
         .next()
@@ -259,21 +334,51 @@ fn detect_opencode_auth_paths() -> Vec<PathBuf> {
 fn build_opencode_auth_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::<PathBuf>::new();
 
+    if let Some(opencode_auth_path) = env::var_os("OPENCODE_AUTH_PATH").map(PathBuf::from) {
+        push_unique_path(&mut candidates, opencode_auth_path);
+    }
+
+    if let Some(opencode_auth_home) = env::var_os("OPENCODE_AUTH_HOME").map(PathBuf::from) {
+        push_unique_path(&mut candidates, opencode_auth_home.join("openai.json"));
+    }
+
     // 优先读取配置目录，兼容 Windows 用户常见路径 `~/.config/opencode/auth.json`。
     if let Some(opencode_config_home) = env::var_os("OPENCODE_CONFIG_HOME").map(PathBuf::from) {
         push_unique_path(&mut candidates, opencode_config_home.join("auth.json"));
+        push_unique_path(
+            &mut candidates,
+            opencode_config_home.join("auth").join("openai.json"),
+        );
     }
     if let Some(xdg_config_home) = env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
         push_unique_path(
             &mut candidates,
             xdg_config_home.join("opencode").join("auth.json"),
         );
+        push_unique_path(
+            &mut candidates,
+            xdg_config_home
+                .join("opencode")
+                .join("auth")
+                .join("openai.json"),
+        );
     }
 
     if let Some(home) = dirs::home_dir() {
         push_unique_path(
             &mut candidates,
+            home.join(".opencode").join("auth").join("openai.json"),
+        );
+        push_unique_path(
+            &mut candidates,
             home.join(".config").join("opencode").join("auth.json"),
+        );
+        push_unique_path(
+            &mut candidates,
+            home.join(".config")
+                .join("opencode")
+                .join("auth")
+                .join("openai.json"),
         );
     }
 
@@ -281,11 +386,38 @@ fn build_opencode_auth_candidates() -> Vec<PathBuf> {
     {
         if let Some(app_data) = env::var_os("APPDATA").map(PathBuf::from) {
             push_unique_path(&mut candidates, app_data.join("opencode").join("auth.json"));
+            push_unique_path(
+                &mut candidates,
+                app_data.join("opencode").join("auth").join("openai.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                app_data
+                    .join("ai.opencode.desktop")
+                    .join("opencode")
+                    .join("auth")
+                    .join("openai.json"),
+            );
         }
         if let Some(local_app_data) = env::var_os("LOCALAPPDATA").map(PathBuf::from) {
             push_unique_path(
                 &mut candidates,
                 local_app_data.join("opencode").join("auth.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                local_app_data
+                    .join("opencode")
+                    .join("auth")
+                    .join("openai.json"),
+            );
+            push_unique_path(
+                &mut candidates,
+                local_app_data
+                    .join("ai.opencode.desktop")
+                    .join("opencode")
+                    .join("auth")
+                    .join("openai.json"),
             );
         }
     }
@@ -294,6 +426,13 @@ fn build_opencode_auth_candidates() -> Vec<PathBuf> {
         push_unique_path(
             &mut candidates,
             xdg_data_home.join("opencode").join("auth.json"),
+        );
+        push_unique_path(
+            &mut candidates,
+            xdg_data_home
+                .join("opencode")
+                .join("auth")
+                .join("openai.json"),
         );
     }
 
@@ -307,15 +446,61 @@ fn build_opencode_auth_candidates() -> Vec<PathBuf> {
         );
         push_unique_path(
             &mut candidates,
+            home.join(".local")
+                .join("share")
+                .join("opencode")
+                .join("auth")
+                .join("openai.json"),
+        );
+        push_unique_path(
+            &mut candidates,
             home.join("Library")
                 .join("Application Support")
                 .join("opencode")
                 .join("auth.json"),
         );
+        push_unique_path(
+            &mut candidates,
+            home.join("Library")
+                .join("Application Support")
+                .join("opencode")
+                .join("auth")
+                .join("openai.json"),
+        );
         push_unique_path(&mut candidates, home.join(".opencode").join("auth.json"));
     }
 
     candidates
+}
+
+fn detect_opencode_auth_storage_format(auth_path: &Path) -> OpencodeAuthStorageFormat {
+    if let Some(file_name) = auth_path.file_name().and_then(|value| value.to_str()) {
+        if file_name.eq_ignore_ascii_case("openai.json") {
+            return OpencodeAuthStorageFormat::ProviderAuthFile;
+        }
+        if file_name.eq_ignore_ascii_case("auth.json") {
+            return OpencodeAuthStorageFormat::SharedAuthJson;
+        }
+    }
+
+    if auth_path.exists() {
+        if let Ok(raw) = fs::read_to_string(auth_path) {
+            if let Ok(Value::Object(root)) = serde_json::from_str::<Value>(&raw) {
+                if root.contains_key("openai") {
+                    return OpencodeAuthStorageFormat::SharedAuthJson;
+                }
+                if root.contains_key("access")
+                    || root.contains_key("refresh")
+                    || root.contains_key("expires")
+                    || root.contains_key("type")
+                {
+                    return OpencodeAuthStorageFormat::ProviderAuthFile;
+                }
+            }
+        }
+    }
+
+    OpencodeAuthStorageFormat::SharedAuthJson
 }
 
 fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
@@ -494,5 +679,99 @@ fn is_executable_file(path: &Path) -> bool {
     #[cfg(not(unix))]
     {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sync_openai_auth_to_path;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::SystemTime;
+    use std::time::UNIX_EPOCH;
+
+    use crate::auth::CodexOAuthTokens;
+
+    fn temp_file_path(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        std::env::temp_dir()
+            .join("codex-tools-tests")
+            .join(format!("{unique}"))
+            .join(name)
+    }
+
+    fn sample_tokens() -> CodexOAuthTokens {
+        CodexOAuthTokens {
+            access_token: "access-token".to_string(),
+            refresh_token: "refresh-token".to_string(),
+            account_id: Some("account-123".to_string()),
+            expires_at_ms: Some(1_735_689_600_000),
+        }
+    }
+
+    #[test]
+    fn writes_provider_auth_file_as_flat_openai_credentials() {
+        let path = temp_file_path("openai.json");
+        sync_openai_auth_to_path(&path, &sample_tokens())
+            .expect("provider auth sync should succeed");
+
+        let parsed: Value = serde_json::from_str(
+            &fs::read_to_string(&path).expect("provider auth file should exist"),
+        )
+        .expect("provider auth file should be valid json");
+
+        assert_eq!(parsed.get("type").and_then(Value::as_str), Some("oauth"));
+        assert_eq!(
+            parsed.get("access").and_then(Value::as_str),
+            Some("access-token")
+        );
+        assert_eq!(
+            parsed.get("refresh").and_then(Value::as_str),
+            Some("refresh-token")
+        );
+        assert_eq!(
+            parsed.get("accountId").and_then(Value::as_str),
+            Some("account-123")
+        );
+        assert!(parsed.get("openai").is_none());
+
+        fs::remove_dir_all(path.parent().expect("temp dir parent"))
+            .expect("temp directory cleanup should succeed");
+    }
+
+    #[test]
+    fn writes_shared_auth_store_under_openai_key() {
+        let path = temp_file_path("auth.json");
+        sync_openai_auth_to_path(&path, &sample_tokens()).expect("shared auth sync should succeed");
+
+        let parsed: Value = serde_json::from_str(
+            &fs::read_to_string(&path).expect("shared auth file should exist"),
+        )
+        .expect("shared auth file should be valid json");
+        let openai = parsed
+            .get("openai")
+            .expect("shared auth should contain openai key");
+
+        assert_eq!(openai.get("type").and_then(Value::as_str), Some("oauth"));
+        assert_eq!(
+            openai.get("access").and_then(Value::as_str),
+            Some("access-token")
+        );
+        assert_eq!(
+            openai.get("refresh").and_then(Value::as_str),
+            Some("refresh-token")
+        );
+        assert_eq!(
+            openai.get("accountId").and_then(Value::as_str),
+            Some("account-123")
+        );
+        assert!(parsed.get("access").is_none());
+
+        fs::remove_dir_all(path.parent().expect("temp dir parent"))
+            .expect("temp directory cleanup should succeed");
     }
 }

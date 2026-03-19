@@ -202,6 +202,7 @@ export type AppSettings = {
   launchAtStartup: boolean;
   trayUsageDisplayMode: TrayUsageDisplayMode;
   launchCodexAfterSwitch: boolean;
+  codexLaunchPath: string | null;
   syncOpencodeOpenaiAuth: boolean;
   restartOpencodeDesktopOnSwitch: boolean;
   restartEditorsOnSwitch: boolean;

@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   launchAtStartup: false,
   trayUsageDisplayMode: "remaining",
   launchCodexAfterSwitch: true,
+  codexLaunchPath: null,
   syncOpencodeOpenaiAuth: false,
   restartOpencodeDesktopOnSwitch: false,
   restartEditorsOnSwitch: false,

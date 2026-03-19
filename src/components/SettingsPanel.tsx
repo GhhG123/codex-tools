@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import {
   PROJECT_CHANGELOG_URL,
   PROJECT_ISSUES_URL,
@@ -56,6 +57,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const { copy, locale, localeOptions, setLocale } = useI18n();
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [pickingCodexLaunchPathKind, setPickingCodexLaunchPathKind] = useState<"file" | "directory" | null>(null);
   const languageLabel = copy.topBar.languagePicker;
   const languageOptions = localeOptions.map((item) => ({
     id: item.code,
@@ -78,6 +80,26 @@ export function SettingsPanel({
       cancelled = true;
     };
   }, []);
+
+  const pickCodexLaunchPath = async (kind: "file" | "directory") => {
+    if (savingSettings || pickingCodexLaunchPathKind) {
+      return;
+    }
+
+    setPickingCodexLaunchPathKind(kind);
+    try {
+      const selected = await invoke<string | null>("pick_codex_launch_path", {
+        kind,
+        currentPath: settings.codexLaunchPath,
+      });
+      if (!selected) {
+        return;
+      }
+      onUpdateSettings({ codexLaunchPath: selected });
+    } finally {
+      setPickingCodexLaunchPathKind(null);
+    }
+  };
 
   return (
     <section className="settingsPage" aria-label={copy.settings.title}>
@@ -155,6 +177,50 @@ export function SettingsPanel({
             uncheckedText={copy.settings.launchCodexAfterSwitch.uncheckedText}
             disabled={savingSettings}
           />
+
+          <div className="settingRow">
+            <div className="settingMeta">
+              <strong>{copy.settings.codexLaunchPath.label}</strong>
+            </div>
+            <div className="settingFieldGroup">
+              {settings.codexLaunchPath ? (
+                <span className="settingPathValue">{settings.codexLaunchPath}</span>
+              ) : null}
+              <div className="settingActionGroup">
+                {settings.codexLaunchPath ? (
+                  <button
+                    className="ghost settingPathClearButton"
+                    type="button"
+                    aria-label={copy.common.clear}
+                    disabled={savingSettings || pickingCodexLaunchPathKind !== null}
+                    onClick={() => onUpdateSettings({ codexLaunchPath: null })}
+                  >
+                    ×
+                  </button>
+                ) : null}
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={savingSettings || pickingCodexLaunchPathKind !== null}
+                  onClick={() => {
+                    void pickCodexLaunchPath("file");
+                  }}
+                >
+                  {copy.addAccount.uploadChooseFiles}
+                </button>
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={savingSettings || pickingCodexLaunchPathKind !== null}
+                  onClick={() => {
+                    void pickCodexLaunchPath("directory");
+                  }}
+                >
+                  {copy.addAccount.uploadChooseFolder}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <SwitchField
             checked={settings.syncOpencodeOpenaiAuth}
