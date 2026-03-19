@@ -17,9 +17,7 @@
   "metaStrip": {
     "ariaLabel": "账号概览",
     "accountCount": "账号数",
-    "currentActive": "当前活跃",
-    "currentWorkspace": "当前工作区",
-    "currentWorkspaceEmpty": "未检测到"
+    "currentActive": "当前活跃"
   },
   "addAccount": {
     "smartSwitch": "智能切换",
@@ -52,12 +50,9 @@
   "accountCard": {
     "currentStamp": "当前",
     "currentBadge": "当前账号",
-    "workspaceLabel": "工作区",
     "launch": "切换并启动",
     "launching": "启动中",
     "editAlias": "设置别名",
-    "saveAlias": "保存",
-    "cancelAlias": "取消",
     "aliasInputLabel": "账号别名",
     "delete": "删除账号",
     "deleteConfirm": "再次点击确认删除账号",

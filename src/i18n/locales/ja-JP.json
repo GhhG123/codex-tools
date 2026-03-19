@@ -17,9 +17,7 @@
   "metaStrip": {
     "ariaLabel": "アカウント概要",
     "accountCount": "アカウント数",
-    "currentActive": "現在アクティブ",
-    "currentWorkspace": "現在のワークスペース",
-    "currentWorkspaceEmpty": "未検出"
+    "currentActive": "現在アクティブ"
   },
   "addAccount": {
     "smartSwitch": "スマート切替",
@@ -52,12 +50,9 @@
   "accountCard": {
     "currentStamp": "現在",
     "currentBadge": "現在のアカウント",
-    "workspaceLabel": "ワークスペース",
     "launch": "切替して起動",
     "launching": "起動中",
     "editAlias": "別名を編集",
-    "saveAlias": "保存",
-    "cancelAlias": "キャンセル",
     "aliasInputLabel": "アカウント別名",
     "delete": "アカウント削除",
     "deleteConfirm": "もう一度クリックして削除を確定",

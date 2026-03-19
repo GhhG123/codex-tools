@@ -62,8 +62,6 @@ export type MessageCatalog = {
     ariaLabel: string;
     accountCount: string;
     currentActive: string;
-    currentWorkspace: string;
-    currentWorkspaceEmpty: string;
   };
   addAccount: {
     smartSwitch: string;
@@ -96,12 +94,9 @@ export type MessageCatalog = {
   accountCard: {
     currentStamp: string;
     currentBadge: string;
-    workspaceLabel: string;
     launch: string;
     launching: string;
     editAlias: string;
-    saveAlias: string;
-    cancelAlias: string;
     aliasInputLabel: string;
     delete: string;
     deleteConfirm: string;

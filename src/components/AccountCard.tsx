@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { AccountSummary } from "../types/app";
 import {
@@ -171,10 +171,6 @@ export function AccountCard({
   const fiveHourReset = formatResetValue(fiveHour?.resetAt, locale);
   const oneWeekReset = formatResetValue(oneWeek?.resetAt, locale);
   const normalizedDraftLabel = draftLabel.trim();
-  const canSaveAlias =
-    normalizedDraftLabel.length > 0 &&
-    normalizedDraftLabel !== selectedAccount.label.trim() &&
-    !isRenaming;
 
   const handleLaunch = () => {
     if (isSwitching) return;
@@ -191,16 +187,18 @@ export function AccountCard({
   };
 
   const handleCancelAliasEdit = () => {
-    if (isRenaming) {
-      return;
-    }
     setDraftLabel(selectedAccount.label);
     setIsEditingAlias(false);
   };
 
-  const handleAliasSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSaveAlias) {
+  const commitAliasEdit = async () => {
+    if (!normalizedDraftLabel) {
+      handleCancelAliasEdit();
+      return;
+    }
+
+    if (normalizedDraftLabel === selectedAccount.label.trim()) {
+      setIsEditingAlias(false);
       return;
     }
 
@@ -249,21 +247,9 @@ export function AccountCard({
                 </button>
               );
             })}
-            <span
-              className="cardBadge workspaceBadge"
-              title={selectedAccount.accountId}
-              aria-label={`${copy.accountCard.workspaceLabel}: ${
-                selectedAccount.workspaceName ?? selectedAccount.accountId
-              }`}
-            >
-              <span className="workspaceBadgeLabel">{copy.accountCard.workspaceLabel}</span>
-              <span className="workspaceBadgeValue">
-                {selectedAccount.workspaceName ?? selectedAccount.accountId}
-              </span>
-            </span>
           </div>
           {isEditingAlias ? (
-            <form className="cardAliasEditor" onSubmit={handleAliasSubmit}>
+            <div className="cardAliasEditor">
               <label className="visuallyHidden" htmlFor={`account-alias-${selectedAccount.id}`}>
                 {copy.accountCard.aliasInputLabel}
               </label>
@@ -274,31 +260,21 @@ export function AccountCard({
                 autoFocus
                 disabled={isRenaming}
                 onChange={(event) => setDraftLabel(event.target.value)}
+                onBlur={() => {
+                  void commitAliasEdit();
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Escape") {
                     event.preventDefault();
                     handleCancelAliasEdit();
                   }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
                 }}
               />
-              <div className="cardAliasActions">
-                <button
-                  type="submit"
-                  className="primary cardAliasAction"
-                  disabled={!canSaveAlias}
-                >
-                  {copy.accountCard.saveAlias}
-                </button>
-                <button
-                  type="button"
-                  className="ghost cardAliasAction"
-                  onClick={handleCancelAliasEdit}
-                  disabled={isRenaming}
-                >
-                  {copy.accountCard.cancelAlias}
-                </button>
-              </div>
-            </form>
+            </div>
           ) : (
             <h3 className={selectedAccount.isCurrent ? "nameCurrent" : ""}>
               {selectedAccount.label}

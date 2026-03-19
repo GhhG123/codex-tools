@@ -17,9 +17,7 @@
   "metaStrip": {
     "ariaLabel": "Обзор аккаунтов",
     "accountCount": "Аккаунты",
-    "currentActive": "Активен сейчас",
-    "currentWorkspace": "Текущее рабочее пространство",
-    "currentWorkspaceEmpty": "Не обнаружено"
+    "currentActive": "Активен сейчас"
   },
   "addAccount": {
     "smartSwitch": "Умное переключение",
@@ -52,12 +50,9 @@
   "accountCard": {
     "currentStamp": "Текущий",
     "currentBadge": "Текущий аккаунт",
-    "workspaceLabel": "Рабочее пространство",
     "launch": "Переключить и запустить",
     "launching": "Запуск",
     "editAlias": "Изменить псевдоним",
-    "saveAlias": "Сохранить",
-    "cancelAlias": "Отмена",
     "aliasInputLabel": "Псевдоним аккаунта",
     "delete": "Удалить аккаунт",
     "deleteConfirm": "Нажмите еще раз для подтверждения удаления",

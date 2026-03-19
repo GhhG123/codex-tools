@@ -17,9 +17,7 @@
   "metaStrip": {
     "ariaLabel": "Account overview",
     "accountCount": "Accounts",
-    "currentActive": "Active now",
-    "currentWorkspace": "Current workspace",
-    "currentWorkspaceEmpty": "Not detected"
+    "currentActive": "Active now"
   },
   "addAccount": {
     "smartSwitch": "Smart switch",
@@ -52,12 +50,9 @@
   "accountCard": {
     "currentStamp": "Current",
     "currentBadge": "Current account",
-    "workspaceLabel": "Workspace",
     "launch": "Switch and launch",
     "launching": "Launching",
     "editAlias": "Edit alias",
-    "saveAlias": "Save",
-    "cancelAlias": "Cancel",
     "aliasInputLabel": "Account alias",
     "delete": "Delete account",
     "deleteConfirm": "Click again to confirm deleting account",
